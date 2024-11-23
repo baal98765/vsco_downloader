@@ -127,8 +127,17 @@ def vsco_page():
     Stay tuned for additional features and support for more platforms!
     """)
 
+# Initialize instaloader object
 L = instaloader.Instaloader()
-L.load_session_from_file("baal123487")
+
+# Define the session file path
+session_file_path = "session-baal123487"  # Update to match your actual session file path
+
+# Ensure that the session file exists before loading
+if os.path.exists(session_file_path):
+    L.load_session_from_file("baal123487", session_file_path)  # Use correct file path
+else:
+    print("Session file not found!")
 
 # Add custom CSS for Instagram theme
 def add_custom_css():
