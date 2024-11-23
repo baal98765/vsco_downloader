@@ -7,9 +7,11 @@ import shutil
 import asyncio
 import instaloader
 from zipfile import ZipFile
+import time
 import io
 import re
 import zipfile
+from concurrent.futures import ThreadPoolExecutor
 import json
 import requests
 from bs4 import BeautifulSoup
@@ -171,111 +173,243 @@ def add_custom_css():
         unsafe_allow_html=True,
     )
 
-# Asynchronous function to download a single post
-async def async_download_post(post, folder_path):
-    loop = asyncio.get_event_loop()
-    await loop.run_in_executor(None, lambda: L.download_post(post, target=folder_path))
 
-# Function to create a zip file
-def create_zip_file(folder_path, zip_name):
-    with ZipFile(zip_name, 'w') as zipf:
-        for root, _, files in os.walk(folder_path):
-            for file in files:
-                file_path = os.path.join(root, file)
-                zipf.write(file_path, os.path.relpath(file_path, folder_path))
-    return zip_name
 
-# Streamlit Instagram Tab
+
+# Helper function to zip the files
+def zip_files(file_paths, zip_name):
+    zip_buffer = io.BytesIO()
+    with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+        for file in file_paths:
+            zip_file.write(file, os.path.basename(file))
+    zip_buffer.seek(0)
+    return zip_buffer
+
+# Helper function to download posts asynchronously
+async def download_post_async(post, folder_path):
+    await asyncio.to_thread(L.download_post, post, target=folder_path)
+
+# Function to download user posts
+async def download_user_posts(username: str):
+    try:
+        st.info(f"Fetching posts from {username}...")
+
+        # Get profile object
+        profile = instaloader.Profile.from_username(L.context, username)
+
+        # Create a folder to store the downloaded posts
+        folder_path = f"{username}_posts"
+        if not os.path.exists(folder_path):
+            os.makedirs(folder_path)
+
+        # Fetch posts
+        posts = list(profile.get_posts())[:400]  # Limit to 400 posts for efficiency
+        post_files = []
+
+        # Create tasks for concurrent downloading
+        tasks = []
+        for post in posts:
+            tasks.append(download_post_async(post, folder_path))
+
+        # Wait for all tasks to complete
+        await asyncio.gather(*tasks)
+
+        # Check for valid media files (images/videos)
+        for filename in os.listdir(folder_path):
+            file_path = os.path.join(folder_path, filename)
+            if file_path.endswith(('jpg', 'jpeg', 'png', 'mp4')):
+                post_files.append(file_path)
+
+        if not post_files:
+            st.warning("No posts found for this user.")
+            return []
+
+        return post_files
+
+    except Exception as e:
+        st.error(f"An error occurred while fetching posts: {e}")
+
+# Helper function to download stories asynchronously
+async def download_story_async(item, folder_path):
+    await asyncio.to_thread(L.download_storyitem, item, target=folder_path)
+
+# Function to download user stories
+async def download_user_stories(username: str):
+    try:
+        st.info(f"Fetching stories from {username}...")
+
+        # Get profile object
+        profile = instaloader.Profile.from_username(L.context, username)
+
+        # Fetch user ID from the profile
+        profile_id = profile.userid
+        
+        # Create a folder for stories
+        folder_path = f"{username}_stories"
+        if not os.path.exists(folder_path):
+            os.makedirs(folder_path)
+
+        # Download stories (instaloader's L.get_stories() function needs the profile ID)
+        stories = L.get_stories(userids=[profile_id])
+        story_files = []
+
+        # Create tasks for concurrent downloading of story items
+        tasks = []
+        for story in stories:
+            for item in story.get_items():
+                tasks.append(download_story_async(item, folder_path))
+
+        # Wait for all tasks to complete
+        await asyncio.gather(*tasks)
+
+        # Check for valid media files (images/videos)
+        for filename in os.listdir(folder_path):
+            file_path = os.path.join(folder_path, filename)
+            if file_path.endswith(('jpg', 'jpeg', 'png', 'mp4')):
+                story_files.append(file_path)
+
+        if not story_files:
+            st.warning("No stories found for this user.")
+            return []
+
+        return story_files
+
+    except Exception as e:
+        st.error(f"An error occurred while fetching stories: {e}")
+
+# Helper function to download tagged media asynchronously
+async def download_tagged_async(post, folder_path):
+    await asyncio.to_thread(L.download_post, post, target=folder_path)
+
+# Function to download tagged media
+async def download_tagged_media(username: str):
+    try:
+        st.info(f"Fetching tagged media for {username}...")
+
+        # Get profile object
+        profile = instaloader.Profile.from_username(L.context, username)
+
+        # Fetch tagged media
+        tagged_posts = list(profile.get_tagged_posts())
+        tagged_files = []
+
+        # Create tasks for concurrent downloading of tagged media
+        tasks = []
+        for post in tagged_posts:
+            tasks.append(download_tagged_async(post, f"{username}_tagged"))
+
+        # Wait for all tasks to complete
+        await asyncio.gather(*tasks)
+
+        # Check for valid media files (images/videos)
+        folder_path = f"{username}_tagged"
+        for filename in os.listdir(folder_path):
+            file_path = os.path.join(folder_path, filename)
+            if file_path.endswith(('jpg', 'jpeg', 'png', 'mp4')):
+                tagged_files.append(file_path)
+
+        if not tagged_files:
+            st.warning("No tagged media found for this user.")
+            return []
+
+        return tagged_files
+
+    except Exception as e:
+        st.error(f"An error occurred while fetching tagged media: {e}")
+
+# Helper function to display media in a grid layout
+def display_media_in_grid(media_files):
+    cols = st.columns(3)  # Adjust this number to change the number of columns
+    col_idx = 0
+
+    # Display media as a grid
+    for media_file in media_files:
+        with cols[col_idx]:
+            if media_file.endswith(('jpg', 'jpeg', 'png')):
+                st.image(media_file, caption=os.path.basename(media_file), width=300)  # Specify width here
+            elif media_file.endswith('mp4'):
+                st.video(media_file)  # Use default behavior for video
+
+        col_idx += 1
+        if col_idx == 3:  # Reset column index to 0 after every 3 images (for the grid)
+            col_idx = 0
+
+# Instagram Page with Tabs for Posts, Stories, and Tagged Media
 def instagram_page():
-    # Add custom CSS for Instagram font (you can adjust this to any Instagram-like font you like)
+    # Add custom CSS for Instagram font
     add_custom_css()
-    
+
     # Add Instagram Logo at the top
-    insta_logo_url = "https://upload.wikimedia.org/wikipedia/commons/9/95/Instagram_logo_2022.svg"  # Instagram logo URL
-    st.image(insta_logo_url, width=200, caption="Instagram")  # Adjust width and caption as needed
-    
-    # Instagram title with a custom font (you can adjust the font style in the CSS)
+    insta_logo_url = "https://upload.wikimedia.org/wikipedia/commons/9/95/Instagram_logo_2022.svg"
+    st.image(insta_logo_url, width=200, caption="Instagram")
+
     st.markdown("<h1 style='text-align: center; font-family: \"Instagram Sans\", sans-serif;'>📸 Instagram Downloader</h1>", unsafe_allow_html=True)
-    
-    st.markdown(
-        "<p style='text-align: center; font-family: \"Instagram Sans\", sans-serif;'>Download and enjoy Instagram posts effortlessly!</p>",
-        unsafe_allow_html=True,
-    )
-    
+
+    st.markdown("<p style='text-align: center; font-family: \"Instagram Sans\", sans-serif;'>Download and enjoy Instagram media effortlessly!</p>", unsafe_allow_html=True)
+
     # Input field for Instagram Username
-    username = st.text_input(
-        "Enter Instagram Username",
-        placeholder="e.g., natgeo",
-        help="Type the username of the Instagram profile you want to download posts from.",
-    )
+    username = st.text_input("Enter Instagram Username", placeholder="e.g., natgeo", key="username_input")
 
-    if st.button("📥 Download Posts"):
+    # Add tabs for Posts, Stories, and Tagged Media
+    tabs = st.tabs(["📷 Posts", "📖 Stories", "🏷️ Tagged Media"])
+
+    # Variables to store media files
+    post_files, story_files, tagged_files = [], [], []
+
+    # Posts Tab
+    with tabs[0]:
         if username:
-            st.info(f"Fetching posts for {username}... Please wait a moment.")
-            folder_path = f"{username}"
-            os.makedirs(folder_path, exist_ok=True)
+            if st.button("📥 Fetch Posts"):
+                post_files = asyncio.run(download_user_posts(username))
+                if post_files:
+                    display_media_in_grid(post_files)
 
-            try:
-                # Load the profile
-                profile = instaloader.Profile.from_username(L.context, username)
-                total_posts = profile.mediacount
+            if post_files:
+                zip_buffer = zip_files(post_files, f"{username}_posts_media")
+                st.download_button(
+                    label="💾 Download All Posts Media",
+                    data=zip_buffer,
+                    file_name=f"{username}_posts_media.zip",
+                    mime="application/zip"
+                )
 
-                if total_posts > 400:
-                    st.warning("⚠️ Post limit exceeded. Please select an account with fewer than 400 posts.")
-                    return
+    # Stories Tab
+    with tabs[1]:
+        if username:
+            if st.button("📥 Fetch Stories"):
+                story_files = asyncio.run(download_user_stories(username))
+                if story_files:
+                    display_media_in_grid(story_files)
 
-                posts = list(profile.get_posts())[:400]
+            if story_files:
+                zip_buffer = zip_files(story_files, f"{username}_stories_media")
+                st.download_button(
+                    label="💾 Download All Stories Media",
+                    data=zip_buffer,
+                    file_name=f"{username}_stories_media.zip",
+                    mime="application/zip"
+                )
 
-                # Async download posts
-                async def download_posts():
-                    tasks = [async_download_post(post, folder_path) for post in posts]
-                    await asyncio.gather(*tasks)
+    # Tagged Media Tab
+    with tabs[2]:
+        if username:
+            if st.button("📥 Fetch Tagged Media"):
+                tagged_files = asyncio.run(download_tagged_media(username))
+                if tagged_files:
+                    display_media_in_grid(tagged_files)
 
-                asyncio.run(download_posts())
+            if tagged_files:
+                zip_buffer = zip_files(tagged_files, f"{username}_tagged_media")
+                st.download_button(
+                    label="💾 Download All Tagged Media",
+                    data=zip_buffer,
+                    file_name=f"{username}_tagged_media.zip",
+                    mime="application/zip"
+                )
 
-                # Display media in a grid layout
-                media_files = [
-                    os.path.join(folder_path, f) for f in os.listdir(folder_path)
-                    if f.endswith(('jpg', 'jpeg', 'png', 'mp4'))
-                ]
-
-                # Create a number of columns based on the media count
-                cols = st.columns(3)  # Adjust 3 to the number of columns you want
-                col_idx = 0
-
-                for media_file in media_files:
-                    with cols[col_idx]:
-                        if media_file.endswith(('jpg', 'jpeg', 'png')):
-                            st.image(media_file, caption=os.path.basename(media_file), width=300)  # Specify width here
-                        elif media_file.endswith('mp4'):
-                            st.video(media_file)  # Use default behavior for video
-
-                    col_idx += 1
-                    if col_idx == 3:  # Reset column index to 0 after every 3 images
-                        col_idx = 0
-
-                # "Download All" button
-                zip_name = f"{username}_all_media.zip"
-                zip_file_path = create_zip_file(folder_path, zip_name)
-                with open(zip_file_path, "rb") as f:
-                    st.download_button(
-                        label="💾 Download All Media",
-                        data=f,
-                        file_name=os.path.basename(zip_file_path),
-                        mime="application/zip"
-                    )
-
-                # Clean up
-                os.remove(zip_file_path)
-                shutil.rmtree(folder_path)
-                st.success(f"🎉 All posts from {username} downloaded successfully!")
-            except Exception as e:
-                st.error(f"❌ An error occurred: {e}")
-        else:
-            st.warning("⚠️ Please enter a username.")
-
-
-# Function to fetch JSON data for a Snapchat username
+    if not username:
+        st.warning("Please enter a valid Instagram username.")
+        
 async def get_json(session, username):
     base_url = "https://story.snapchat.com/@"
     headers = {'User-Agent': 'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:94.0) Gecko/20100101 Firefox/103.0.2'}
