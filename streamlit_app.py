@@ -202,15 +202,21 @@ async def download_user_posts(username: str):
         if not os.path.exists(folder_path):
             os.makedirs(folder_path)
 
-        # Fetch posts
-        posts = list(profile.get_posts())  # No limit yet, fetch all posts
-        total_posts = len(posts)  # Count the total number of posts
+        # Fetch posts and count them instantly (don't wait for downloads)
+        posts = list(profile.get_posts())  # Fetch all posts first
+        total_posts = len(posts)  # Get the total number of posts immediately
 
+        # Check if posts exceed the limit
         if total_posts > 400:
             st.warning(f"Post limit exceeded. The maximum number of posts you can download is 400. Found {total_posts} posts.")
             posts = posts[:400]  # Limit to 400 posts for efficiency
         else:
             st.info(f"Found {total_posts} posts.")  # Inform the user about the number of posts
+
+        # If no posts are found
+        if total_posts == 0:
+            st.warning("No posts found for this user.")
+            return []
 
         post_files = []
 
@@ -219,7 +225,7 @@ async def download_user_posts(username: str):
         for post in posts:
             tasks.append(download_post_async(post, folder_path))
 
-        # Wait for all tasks to complete
+        # Wait for all tasks to complete (downloads start only after we know total posts)
         await asyncio.gather(*tasks)
 
         # Check for valid media files (images/videos)
@@ -228,14 +234,11 @@ async def download_user_posts(username: str):
             if file_path.endswith(('jpg', 'jpeg', 'png', 'mp4')):
                 post_files.append(file_path)
 
-        if not post_files:
-            st.warning("No posts found for this user.")
-            return []
-
         return post_files
 
     except Exception as e:
         st.error(f"An error occurred while fetching posts: {e}")
+
 
 
 # Helper function to download stories asynchronously
