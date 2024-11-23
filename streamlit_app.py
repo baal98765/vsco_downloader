@@ -203,7 +203,15 @@ async def download_user_posts(username: str):
             os.makedirs(folder_path)
 
         # Fetch posts
-        posts = list(profile.get_posts())[:400]  # Limit to 400 posts for efficiency
+        posts = list(profile.get_posts())  # No limit yet, fetch all posts
+        total_posts = len(posts)  # Count the total number of posts
+
+        if total_posts > 400:
+            st.warning(f"Post limit exceeded. The maximum number of posts you can download is 400. Found {total_posts} posts.")
+            posts = posts[:400]  # Limit to 400 posts for efficiency
+        else:
+            st.info(f"Found {total_posts} posts.")  # Inform the user about the number of posts
+
         post_files = []
 
         # Create tasks for concurrent downloading
@@ -228,6 +236,7 @@ async def download_user_posts(username: str):
 
     except Exception as e:
         st.error(f"An error occurred while fetching posts: {e}")
+
 
 # Helper function to download stories asynchronously
 async def download_story_async(item, folder_path):
