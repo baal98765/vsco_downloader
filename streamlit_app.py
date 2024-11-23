@@ -551,9 +551,10 @@ def snapchat_page():
                                     if media_file.endswith(".jpeg"):
                                         st.image(media_file, caption="Image", use_container_width=True)
                                     elif media_file.endswith(".mp4"):
-                                        st.video(media_file, caption="Video", format="video/mp4")
+                                        st.write("Video")  # Display the caption
+                                        st.video(media_file, format="video/mp4")
                             # Add a download button for the zip
-                            zip_filename = zip_media(media_files)
+                            zip_filename = zip_media(media_files, username)
                             with open(zip_filename, "rb") as f:
                                 st.download_button(
                                     label="Download All Snaps",
@@ -569,7 +570,6 @@ def snapchat_page():
             asyncio.run(display_media())
         else:
             st.error("Please enter a valid Snapchat username.")
-
 # Custom CSS for Snapchat font
 def add_custom_css():
     st.markdown("""
