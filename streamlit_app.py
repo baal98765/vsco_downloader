@@ -394,28 +394,7 @@ async def download_tagged_media(username: str):
     except Exception as e:
         st.error(f"An error occurred while fetching tagged media: {e}")
 
-# Function to handle private account download
-async def download_private_account(username: str, password: str):
-    try:
-        # Login to private account
-        L.context.log("Logging in with provided credentials...")
-        L.load_session_from_file(username)  # Attempt to load session
-
-        if not L.context.is_logged_in:
-            L.context.log("Session not loaded. Logging in with username/password.")
-            L.context.username = username
-            L.context.password = password
-            L.context.log("Logging in... Please wait.")
-            L.context.do_login()  # Perform login
-            L.save_session_to_file()  # Save session for future use
-            st.success(f"Session loaded for username {username}!")
-
-        return True
-    except Exception as e:
-        st.error(f"Error logging in: {e}")
-        return False
-
-# Function to display media in a grid layout
+# Helper function to display media in a grid layout
 def display_media_in_grid(media_files):
     cols = st.columns(3)  # Adjust this number to change the number of columns
     col_idx = 0
@@ -448,42 +427,13 @@ def instagram_page():
     # Input field for Instagram Username
     username = st.text_input("Enter Instagram Username", placeholder="e.g., natgeo", key="username_input")
 
-    # Add tabs for Posts, Stories, and Tagged Media, and a sub-tab for Private Account
-    tabs = st.tabs(["📷 Posts", "📖 Stories", "🏷️ Tagged Media", "🔐 Private Account"])
+    # Add tabs for Posts, Stories, and Tagged Media
+    tabs = st.tabs(["📷 Posts", "📖 Stories", "🏷️ Tagged Media"])
 
     # Variables to store media files
     post_files, story_files, tagged_files = [], [], []
 
-    # Private Account Tab
-    with tabs[3]:
-        st.markdown("<h3 style='font-family: \"Instagram Sans\", sans-serif;'>Private Account Login</h3>", unsafe_allow_html=True)
-
-        # Only show login fields if the "Private Account" tab is selected
-        private_username = st.text_input("Your Insta Account Username", placeholder="e.g., username", key="private_username")
-        private_password = st.text_input("Your Insta Account Password", type="password", placeholder="Your password", key="private_password")
-
-        if private_username and private_password:
-            if st.button("📥 Login & Fetch Private Account Media"):
-                logged_in = asyncio.run(download_private_account(private_username, private_password))
-                if logged_in:
-                    st.success("Login successful. You can now download media.")
-                    # Now you can fetch posts, stories, or tagged media from the private account
-                    if st.button("📥 Fetch Private Posts"):
-                        post_files = asyncio.run(download_user_posts(private_username))
-                        if post_files:
-                            display_media_in_grid(post_files)
-                    if st.button("📥 Fetch Private Stories"):
-                        story_files = asyncio.run(download_user_stories(private_username))
-                        if story_files:
-                            display_media_in_grid(story_files)
-                    if st.button("📥 Fetch Tagged Media"):
-                        tagged_files = asyncio.run(download_tagged_media(private_username))
-                        if tagged_files:
-                            display_media_in_grid(tagged_files)
-        else:
-            st.warning("Please enter your username and password to login.")
-
-    # Handle Posts Tab
+    # Posts Tab
     with tabs[0]:
         if username:
             if st.button("📥 Fetch Posts"):
@@ -500,7 +450,7 @@ def instagram_page():
                     mime="application/zip"
                 )
 
-    # Handle Stories Tab
+    # Stories Tab
     with tabs[1]:
         if username:
             if st.button("📥 Fetch Stories"):
@@ -517,7 +467,7 @@ def instagram_page():
                     mime="application/zip"
                 )
 
-    # Handle Tagged Media Tab
+    # Tagged Media Tab
     with tabs[2]:
         if username:
             if st.button("📥 Fetch Tagged Media"):
@@ -533,9 +483,10 @@ def instagram_page():
                     file_name=f"{username}_tagged_media.zip",
                     mime="application/zip"
                 )
-                
-                
-                
+
+    if not username:
+        st.warning("Please enter a valid Instagram username.")
+        
 async def get_json(session, username):
     base_url = "https://story.snapchat.com/@"
     headers = {'User-Agent': 'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:94.0) Gecko/20100101 Firefox/103.0.2'}
