@@ -210,7 +210,7 @@ def vsco_page():
 L = instaloader.Instaloader()
 
 # Define the session file path
-session_file_path = "session-baal123487"  # Update to match your actual session file path
+session_file_path = "session-lil.wasson.fanpage"  # Update to match your actual session file path
 
 # Ensure that the session file exists before loading
 if os.path.exists(session_file_path):
