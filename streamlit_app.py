@@ -274,13 +274,19 @@ async def download_user_posts(username: str):
         # Get profile object
         profile = instaloader.Profile.from_username(L.context, username)
 
+        # Get total number of posts
+        total_posts = profile.mediacount
+        if total_posts > 400:
+            st.warning(f"Post limit exceeded! This user has {total_posts} posts. Maximum allowed is 400.")
+            return []
+
         # Create a folder to store the downloaded posts
         folder_path = f"{username}_posts"
         if not os.path.exists(folder_path):
             os.makedirs(folder_path)
 
         # Fetch posts
-        posts = list(profile.get_posts())[:400]  # Limit to 400 posts for efficiency
+        posts = list(profile.get_posts())[:400]  # Limit to 400 posts
         post_files = []
 
         # Create tasks for concurrent downloading
