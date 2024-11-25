@@ -4,6 +4,7 @@ import instaloader
 import requests
 import os
 import shutil
+from datetime import datetime
 import asyncio
 import instaloader
 from zipfile import ZipFile
@@ -262,58 +263,12 @@ def zip_files(file_paths, zip_name):
     zip_buffer.seek(0)
     return zip_buffer
 
-# Helper function to download Reels asynchronously
-async def download_reel_async(reel, folder_path):
-    await asyncio.to_thread(L.download_post, reel, target=folder_path)
-
-# Function to download Reels
-async def download_reels(username: str):
-    try:
-        st.info(f"Fetching Reels for {username}...")
-
-        # Get profile object
-        profile = instaloader.Profile.from_username(L.context, username)
-
-        # Create a folder for reels
-        folder_path = f"{username}_reels"
-        if not os.path.exists(folder_path):
-            os.makedirs(folder_path)
-
-        # Fetch the Reels from the profile
-        reels = profile.get_reels()  # Fetches all Reels posts of the profile
-        reel_files = []
-
-        # Create tasks for concurrent downloading of Reels media
-        tasks = []
-        for reel in reels:
-            if reel.is_video:  # Make sure only videos are downloaded (Reels are videos)
-                tasks.append(download_reel_async(reel, folder_path))
-
-        # Wait for all tasks to complete
-        await asyncio.gather(*tasks)
-
-        # Check for valid media files (only mp4)
-        for filename in os.listdir(folder_path):
-            file_path = os.path.join(folder_path, filename)
-            if file_path.endswith('mp4'):
-                reel_files.append(file_path)
-
-        if not reel_files:
-            st.warning("No Reels found for this user.")
-            return []
-
-        return reel_files
-
-    except Exception as e:
-        st.error(f"An error occurred while fetching Reels: {e}")
-        return []
-
 # Helper function to download posts asynchronously
 async def download_post_async(post, folder_path):
     await asyncio.to_thread(L.download_post, post, target=folder_path)
 
-# Function to download user posts
-async def download_user_posts(username: str):
+# Function to download user posts with date filtering
+async def download_user_posts(username: str, since_date: datetime = None, until_date: datetime = None):
     try:
         st.info(f"Fetching posts from {username}...")
 
@@ -332,7 +287,16 @@ async def download_user_posts(username: str):
             os.makedirs(folder_path)
 
         # Fetch posts
-        posts = list(profile.get_posts())[:400]  # Limit to 400 posts
+        posts = list(profile.get_posts())
+
+        # Filter posts based on date range
+        if since_date:
+            posts = [post for post in posts if post.date >= since_date]
+        if until_date:
+            posts = [post for post in posts if post.date <= until_date]
+
+        # Limit to the first 400 posts after filtering
+        posts = posts[:400]
         post_files = []
 
         # Create tasks for concurrent downloading
@@ -423,8 +387,8 @@ async def download_highlights(username: str):
         if not os.path.exists(folder_path):
             os.makedirs(folder_path)
 
-        # Fetch the highlight containers
-        highlights = L.get_highlights(profile)  # Correct method to fetch highlights
+        # Fetch highlights using get_highlights()
+        highlights = profile.get_highlights()
         highlight_files = []
 
         # Create tasks for concurrent downloading of highlight media
@@ -450,6 +414,7 @@ async def download_highlights(username: str):
 
     except Exception as e:
         st.error(f"An error occurred while fetching highlights: {e}")
+
 
 
 # Helper function to download tagged media asynchronously
@@ -514,24 +479,26 @@ def display_media_in_grid(media_files):
         if col_idx == 3:  # Reset column index to 0 after every 3 images (for the grid)
             col_idx = 0
 
-# Instagram Page with Tabs for Posts, Stories, Tagged Media, and Highlights
+# Streamlit UI
 def instagram_page():
-    # Add custom CSS for Instagram font
-    add_custom_css()
+    # Add custom CSS and other Streamlit UI components as needed
 
-    # Add Instagram Logo at the top
-    insta_logo_url = "https://upload.wikimedia.org/wikipedia/commons/9/95/Instagram_logo_2022.svg"
-    st.image(insta_logo_url, width=200, caption="Instagram")
+    # Input field for Instagram Username
+    username = st.text_input("Enter Instagram Username", placeholder="e.g., natgeo", key="username_input")
 
-    st.markdown("<h1 style='text-align: center; font-family: \"Instagram Sans\", sans-serif;'>📸 Instagram Downloader</h1>", unsafe_allow_html=True)
+    # Date filter inputs
+    since_input = st.date_input("Since", min_value=datetime(2010, 1, 1), max_value=datetime.today(), value=datetime(2015, 1, 1))
+    until_input = st.date_input("Until", min_value=datetime(2010, 1, 1), max_value=datetime.today(), value=datetime.today())
 
-    st.markdown("<p style='text-align: center; font-family: \"Instagram Sans\", sans-serif;'>Download and enjoy Instagram media effortlessly!</p>", unsafe_allow_html=True)
+    # Convert the date inputs to datetime objects
+    since_date = datetime.combine(since_input, datetime.min.time())
+    until_date = datetime.combine(until_input, datetime.min.time())
 
     # Input field for Instagram Username
     username = st.text_input("Enter Instagram Username", placeholder="e.g., natgeo", key="username_input")
 
     # Add tabs for Posts, Stories, Tagged Media, and Highlights
-    tabs = st.tabs(["📷 Posts", "📖 Stories", "🏷️ Tagged Media", "📚 Highlights", "🎥 Reels"])
+    tabs = st.tabs(["📷 Posts", "📖 Stories", "🏷️ Tagged Media", "📚 Highlights"])
 
     # Variables to store media files
     post_files, story_files, tagged_files, highlight_files = [], [], [], []
@@ -540,7 +507,7 @@ def instagram_page():
     with tabs[0]:
         if username:
             if st.button("📥 Fetch Posts"):
-                post_files = asyncio.run(download_user_posts(username))
+                post_files = asyncio.run(download_user_posts(username, since_date, until_date))
                 if post_files:
                     display_media_in_grid(post_files)
 
@@ -601,26 +568,6 @@ def instagram_page():
                     label="💾 Download All Highlights Media",
                     data=zip_buffer,
                     file_name=f"{username}_highlights_media.zip",
-                    mime="application/zip"
-                )
-
-    if not username:
-        st.warning("Please enter a valid Instagram username.")
-
-    # Reels Tab
-    with tabs[4]:
-        if username:
-            if st.button("📥 Fetch Reels"):
-                reel_files = asyncio.run(download_reels(username))
-                if reel_files:
-                    display_media_in_grid(reel_files)
-
-            if highlight_files:
-                zip_buffer = zip_files(reel_files, f"{username}_reels_media")
-                st.download_button(
-                    label="💾 Download All Reels Media",
-                    data=zip_buffer,
-                    file_name=f"{username}_reels_media.zip",
                     mime="application/zip"
                 )
 
