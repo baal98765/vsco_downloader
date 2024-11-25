@@ -360,53 +360,6 @@ async def download_user_stories(username: str):
     except Exception as e:
         st.error(f"An error occurred while fetching stories: {e}")
 
-# Helper function to download highlight media asynchronously
-async def download_highlight_async(item, folder_path):
-    await asyncio.to_thread(L.download_storyitem, item, target=folder_path)
-
-# Function to download highlights
-async def download_highlights(username: str):
-    try:
-        st.info(f"Fetching highlights for {username}...")
-
-        # Get profile object
-        profile = instaloader.Profile.from_username(L.context, username)
-
-        # Create a folder for highlights
-        folder_path = f"{username}_highlights"
-        if not os.path.exists(folder_path):
-            os.makedirs(folder_path)
-
-        # Fetch highlights
-        highlights = profile.get_highlight_posts()
-        highlight_files = []
-
-        # Create tasks for concurrent downloading of highlight media
-        tasks = []
-        for highlight in highlights:
-            for item in highlight.get_items():
-                tasks.append(download_highlight_async(item, folder_path))
-
-        # Wait for all tasks to complete
-        await asyncio.gather(*tasks)
-
-        # Check for valid media files (images/videos)
-        for filename in os.listdir(folder_path):
-            file_path = os.path.join(folder_path, filename)
-            if file_path.endswith(('jpg', 'jpeg', 'png', 'mp4')):
-                highlight_files.append(file_path)
-
-        if not highlight_files:
-            st.warning("No highlights found for this user.")
-            return []
-
-        return highlight_files
-
-    except Exception as e:
-        st.error(f"An error occurred while fetching highlights: {e}")
-
-
-
 # Helper function to download tagged media asynchronously
 async def download_tagged_async(post, folder_path):
     await asyncio.to_thread(L.download_post, post, target=folder_path)
@@ -469,7 +422,7 @@ def display_media_in_grid(media_files):
         if col_idx == 3:  # Reset column index to 0 after every 3 images (for the grid)
             col_idx = 0
 
-# Instagram Page with Tabs for Posts, Stories, Tagged Media, and Highlights
+# Instagram Page with Tabs for Posts, Stories, and Tagged Media
 def instagram_page():
     # Add custom CSS for Instagram font
     add_custom_css()
@@ -485,11 +438,11 @@ def instagram_page():
     # Input field for Instagram Username
     username = st.text_input("Enter Instagram Username", placeholder="e.g., natgeo", key="username_input")
 
-    # Add tabs for Posts, Stories, Tagged Media, and Highlights
-    tabs = st.tabs(["📷 Posts", "📖 Stories", "🏷️ Tagged Media", "📚 Highlights"])
+    # Add tabs for Posts, Stories, and Tagged Media
+    tabs = st.tabs(["📷 Posts", "📖 Stories", "🏷️ Tagged Media"])
 
     # Variables to store media files
-    post_files, story_files, tagged_files, highlight_files = [], [], [], []
+    post_files, story_files, tagged_files = [], [], []
 
     # Posts Tab
     with tabs[0]:
@@ -541,27 +494,6 @@ def instagram_page():
                     file_name=f"{username}_tagged_media.zip",
                     mime="application/zip"
                 )
-
-    # Highlights Tab
-    with tabs[3]:
-        if username:
-            if st.button("📥 Fetch Highlights"):
-                highlight_files = asyncio.run(download_highlights(username))
-                if highlight_files:
-                    display_media_in_grid(highlight_files)
-
-            if highlight_files:
-                zip_buffer = zip_files(highlight_files, f"{username}_highlights_media")
-                st.download_button(
-                    label="💾 Download All Highlights Media",
-                    data=zip_buffer,
-                    file_name=f"{username}_highlights_media.zip",
-                    mime="application/zip"
-                )
-
-    if not username:
-        st.warning("Please enter a valid Instagram username.")
-
         
 async def get_json(session, username):
     base_url = "https://story.snapchat.com/@"
