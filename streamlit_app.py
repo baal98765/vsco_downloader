@@ -262,6 +262,52 @@ def zip_files(file_paths, zip_name):
     zip_buffer.seek(0)
     return zip_buffer
 
+# Helper function to download Reels asynchronously
+async def download_reel_async(reel, folder_path):
+    await asyncio.to_thread(L.download_post, reel, target=folder_path)
+
+# Function to download Reels
+async def download_reels(username: str):
+    try:
+        st.info(f"Fetching Reels for {username}...")
+
+        # Get profile object
+        profile = instaloader.Profile.from_username(L.context, username)
+
+        # Create a folder for reels
+        folder_path = f"{username}_reels"
+        if not os.path.exists(folder_path):
+            os.makedirs(folder_path)
+
+        # Fetch the Reels from the profile
+        reels = profile.get_reels()  # Fetches all Reels posts of the profile
+        reel_files = []
+
+        # Create tasks for concurrent downloading of Reels media
+        tasks = []
+        for reel in reels:
+            if reel.is_video:  # Make sure only videos are downloaded (Reels are videos)
+                tasks.append(download_reel_async(reel, folder_path))
+
+        # Wait for all tasks to complete
+        await asyncio.gather(*tasks)
+
+        # Check for valid media files (only mp4)
+        for filename in os.listdir(folder_path):
+            file_path = os.path.join(folder_path, filename)
+            if file_path.endswith('mp4'):
+                reel_files.append(file_path)
+
+        if not reel_files:
+            st.warning("No Reels found for this user.")
+            return []
+
+        return reel_files
+
+    except Exception as e:
+        st.error(f"An error occurred while fetching Reels: {e}")
+        return []
+
 # Helper function to download posts asynchronously
 async def download_post_async(post, folder_path):
     await asyncio.to_thread(L.download_post, post, target=folder_path)
