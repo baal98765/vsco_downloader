@@ -377,8 +377,8 @@ async def download_highlights(username: str):
         if not os.path.exists(folder_path):
             os.makedirs(folder_path)
 
-        # Fetch highlight ID's from the profile
-        highlights = profile.get_highlights()
+        # Fetch the highlight containers
+        highlights = L.get_highlights(profile)  # Correct method to fetch highlights
         highlight_files = []
 
         # Create tasks for concurrent downloading of highlight media
@@ -404,7 +404,6 @@ async def download_highlights(username: str):
 
     except Exception as e:
         st.error(f"An error occurred while fetching highlights: {e}")
-
 
 
 # Helper function to download tagged media asynchronously
