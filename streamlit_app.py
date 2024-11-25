@@ -262,7 +262,9 @@ def zip_files(file_paths, zip_name):
             zip_file.write(file, os.path.basename(file))
     zip_buffer.seek(0)
     return zip_buffer
-
+# Helper function to download Reels asynchronously
+async def download_reel_async(reel, folder_path):
+    await asyncio.to_thread(L.download_post, reel, target=folder_path)
 # Function to download Reels
 async def download_reels(username: str):
     try:
