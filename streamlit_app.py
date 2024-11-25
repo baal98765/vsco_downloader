@@ -372,10 +372,10 @@ async def download_tagged_media(username: str):
         # Get profile object
         profile = instaloader.Profile.from_username(L.context, username)
 
-        # Get total number of tagged media
-        total_tagged = profile.get_tagged_posts_count()  # Assuming a function to get the tagged media count
-        if total_tagged > 400:
-            st.warning(f"Tagged media limit exceeded! This user has {total_tagged} tagged posts. Maximum allowed is 400.")
+        # Get total number of posts
+        total_posts = profile.mediacount
+        if total_posts > 400:
+            st.warning(f"Post limit exceeded! This user has {total_posts} posts. Maximum allowed is 400. Skipping tagged media fetch.")
             return []
 
         # Fetch tagged media
