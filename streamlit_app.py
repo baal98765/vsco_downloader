@@ -608,7 +608,22 @@ def instagram_page():
                     file_name=f"{username}_highlights_media.zip",
                     mime="application/zip"
                 )
+    # Highlights Tab
+    with tabs[4]:
+        if username:
+            if st.button("📥 Fetch Reels"):
+                reel_files = asyncio.run(download_reels(username))
+                if reel_files:
+                    display_media_in_grid(reel_files)
 
+            if reel_files:
+                zip_buffer = zip_files(reel_files, f"{username}_reels_media")
+                st.download_button(
+                    label="💾 Download All Reels Media",
+                    data=zip_buffer,
+                    file_name=f"{username}_reels_media.zip",
+                    mime="application/zip"
+                )
     if not username:
         st.warning("Please enter a valid Instagram username.")
 
