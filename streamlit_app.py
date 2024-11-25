@@ -536,7 +536,7 @@ def instagram_page():
     until_date = datetime.combine(until_input, datetime.min.time())
 
     # Add tabs for Posts, Stories, Tagged Media, and Highlights
-    tabs = st.tabs(["📷 Posts", "📖 Stories", "🏷️ Tagged Media", "📚 Highlights"])
+    tabs = st.tabs(["📷 Posts", "📖 Stories", "🏷️ Tagged Media", "📚 Highlights", "🎥 Reels"])
 
     # Variables to store media files
     post_files, story_files, tagged_files, highlight_files = [], [], [], []
