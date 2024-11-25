@@ -483,7 +483,7 @@ def display_media_in_grid(media_files):
 def instagram_page():
     # Add custom CSS and other Streamlit UI components as needed
 
-    # Input field for Instagram Username
+    # Input field for Instagram Username with a unique key
     username = st.text_input("Enter Instagram Username", placeholder="e.g., natgeo", key="username_input")
 
     # Date filter inputs
@@ -493,9 +493,6 @@ def instagram_page():
     # Convert the date inputs to datetime objects
     since_date = datetime.combine(since_input, datetime.min.time())
     until_date = datetime.combine(until_input, datetime.min.time())
-
-    # Input field for Instagram Username
-    username = st.text_input("Enter Instagram Username", placeholder="e.g., natgeo", key="username_input")
 
     # Add tabs for Posts, Stories, Tagged Media, and Highlights
     tabs = st.tabs(["📷 Posts", "📖 Stories", "🏷️ Tagged Media", "📚 Highlights"])
