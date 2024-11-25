@@ -10,6 +10,8 @@ from zipfile import ZipFile
 import time
 import io
 import re
+import urllib.request as ur
+import traceback as tb
 import zipfile
 from concurrent.futures import ThreadPoolExecutor
 import json
@@ -35,7 +37,44 @@ def prepare_download(media_url):
         st.error(f"Failed to prepare download for: {media_url}. Error: {e}")
         return None, None
 
-# Main page content
+def get_gallery_urls(username):
+    try:
+        # Construct gallery URL for VSCO username
+        gallery_url = f"https://vsco.co/{username}/gallery"
+        request_header = {"User-Agent": "Mozilla/5.0 (Windows NT 6.1; Win64; x64)"}
+        request = ur.Request(gallery_url, headers=request_header)
+        data = ur.urlopen(request).read()
+
+        # Extract the JSON state embedded in the HTML page
+        data_cleaned_1 = str(data).split("<script>window.__PRELOADED_STATE__ =")[1]
+        data_cleaned_2 = str(data_cleaned_1).split("</script>")[0]
+        data_cleaned_3 = str(data_cleaned_2).strip()
+        data_cleaned_4 = str(data_cleaned_3).replace("\\x", "\\u00")
+        data_cleaned_5 = re.sub(r'(?<!\\)\\(?!["\\/bfnrt]|u[0-9a-fA-F]{4})', r'', data_cleaned_4)
+
+        # Load the cleaned JSON data from the HTML page
+        json_data = json.loads(data_cleaned_5)
+
+        # Check if images exist in the data
+        images = json_data.get("entities", {}).get("images", {})
+        if not images:
+            print("WARNING: No images found in gallery data!")
+            return []
+
+        # Collect all image URLs from the 'images' key in the JSON data
+        media_urls = [image_data.get("responsiveUrl").replace("\\u002F", "/") for image_data in images.values() if image_data.get("responsiveUrl")]
+        
+        # Ensure all URLs start with 'https://'
+        media_urls = [f"https://{url}" if not url.startswith("https://") else url for url in media_urls]
+        
+        # Limit the number of media URLs to 14 images (default limit on non-logged-in page)
+        media_urls = media_urls[:14]  # Get only the first 14 images if available
+
+        return media_urls
+
+    except Exception as e:
+        print(f"ERROR: An unexpected error occurred while fetching gallery URLs: {e}")
+        return []
 def vsco_page():
     st.title("VSCO Downloader")
     
@@ -48,74 +87,111 @@ def vsco_page():
     """
     st.markdown(general_description)
 
-    st.subheader("Extract Post Media")
+    # Create tabs for different sections
+    tabs = st.tabs(["Extract Post Media", "User Gallery"])
 
-    url_input = st.text_input(
-        "VSCO Post URLs (comma-separated):",
-        placeholder="https://vsco.co/user1/media/12345, https://vsco.co/user2/media/12345",
-        help="Comma-separated list of VSCO post URLs from which media should be extracted.",
-    )
+    with tabs[0]:  # "Extract Post Media" tab
+        st.subheader("Extract Post Media")
 
-    # Center button to start download process
-    l1, l2, center_button, r1, r2 = st.columns(5)
+        url_input = st.text_input(
+            "VSCO Post URLs (comma-separated):",
+            placeholder="https://vsco.co/user1/media/12345, https://vsco.co/user2/media/12345",
+            help="Comma-separated list of VSCO post URLs from which media should be extracted.",
+        )
 
-    with center_button:
-        download = st.button("Download!", type="primary", use_container_width=True)
+        # Center button to start download process
+        l1, l2, center_button, r1, r2 = st.columns(5)
 
-    if download:
-        # Split the input string by commas and process each URL
-        urls = [url.strip() for url in url_input.split(",")]
-        media_urls = []
-        for url in urls:
-            media_urls.extend(vsco_download(url, True, False))  # Fetch media URLs for each input URL
+        with center_button:
+            download = st.button("Download!", type="primary", use_container_width=True)
 
-        if media_urls:
-            st.subheader("Extracted Post Media")
+        if download:
+            # Split the input string by commas and process each URL
+            urls = [url.strip() for url in url_input.split(",")]
+            media_urls = []
+            for url in urls:
+                media_urls.extend(vsco_download(url, True, False))  # Fetch media URLs for each input URL
 
-            # Determine ZIP file name using the first username found
-            usernames = [extract_username(url) for url in urls]
-            unique_usernames = list(set(usernames))  # Ensure unique usernames
-            zip_name = f"{'_'.join(unique_usernames)}_vsco.zip"
+            if media_urls:
+                st.subheader("Extracted Post Media")
 
-            # Create a list of columns for the grid layout
-            num_columns = 3  # You can adjust this number
-            columns = st.columns(num_columns)
+                # Determine ZIP file name using the first username found
+                usernames = [extract_username(url) for url in urls]
+                unique_usernames = list(set(usernames))  # Ensure unique usernames
+                zip_name = f"{'_'.join(unique_usernames)}_vsco.zip"
 
-            # Display media in grid layout
-            col_idx = 0  # To keep track of the column index
-            for media_url in media_urls:
-                with columns[col_idx]:
-                    # Display image or video
-                    if media_url.endswith((".jpg", ".jpeg", ".png", ".gif")):
-                        st.image(media_url, caption="Extracted Image", width=200)  # Adjust width as necessary
-                    elif media_url.endswith((".mp4", ".mov", ".avi")):
-                        st.video(media_url, caption="Extracted Video", format="video/mp4")
+                # Create a list of columns for the grid layout
+                num_columns = 3  # You can adjust this number
+                columns = st.columns(num_columns)
 
-                # Move to the next column
-                col_idx += 1
-                if col_idx >= num_columns:
-                    col_idx = 0  # Reset column index after every 'num_columns' items
-
-            # Prepare a ZIP file in memory for download
-            zip_buffer = io.BytesIO()
-            with zipfile.ZipFile(zip_buffer, "w") as zf:
+                # Display media in grid layout
+                col_idx = 0  # To keep track of the column index
                 for media_url in media_urls:
-                    # Add media to the ZIP file
-                    file_name, file_content = prepare_download(media_url)
-                    if file_name and file_content:
-                        zf.writestr(file_name, file_content)
+                    with columns[col_idx]:
+                        # Display image or video
+                        if media_url.endswith((".jpg", ".jpeg", ".png", ".gif")):
+                            st.image(media_url, caption="Extracted Image", width=200)  # Adjust width as necessary
+                        elif media_url.endswith((".mp4", ".mov", ".avi")):
+                            st.video(media_url, caption="Extracted Video", format="video/mp4")
 
-            zip_buffer.seek(0)  # Rewind the buffer for download
+                    # Move to the next column
+                    col_idx += 1
+                    if col_idx >= num_columns:
+                        col_idx = 0  # Reset column index after every 'num_columns' items
 
-            # Button to download the ZIP file
-            st.download_button(
-                label="Download All Media",
-                data=zip_buffer,
-                file_name=zip_name,
-                mime="application/zip",
-            )
-        else:
-            st.warning("No media found. Please check the URLs and try again.")
+                # Prepare a ZIP file in memory for download
+                zip_buffer = io.BytesIO()
+                with zipfile.ZipFile(zip_buffer, "w") as zf:
+                    for media_url in media_urls:
+                        # Add media to the ZIP file
+                        file_name, file_content = prepare_download(media_url)
+                        if file_name and file_content:
+                            zf.writestr(file_name, file_content)
+
+                zip_buffer.seek(0)  # Rewind the buffer for download
+
+                # Button to download the ZIP file
+                st.download_button(
+                    label="Download All Media",
+                    data=zip_buffer,
+                    file_name=zip_name,
+                    mime="application/zip",
+                )
+            else:
+                st.warning("No media found. Please check the URLs and try again.")
+
+    with tabs[1]:  # "User Gallery" tab
+        st.subheader("User Gallery")
+
+        username_input = st.text_input(
+            "Enter A VSCO Username To Fetch Recent Gallery:",
+            placeholder="username",
+            help="Enter the VSCO username to fetch their gallery media.",
+        )
+
+        if username_input:
+            # Fetch gallery media URLs for the provided username
+            media_urls = get_gallery_urls(username_input)
+
+            if media_urls:
+                st.subheader(f"{username_input}'s Gallery")
+
+                # Create a list of columns for the grid layout
+                num_columns = 3
+                columns = st.columns(num_columns)
+
+                # Display gallery images in grid layout
+                col_idx = 0
+                for media_url in media_urls:
+                    with columns[col_idx]:
+                        st.image(media_url, caption="Gallery Image", width=200)
+
+                    # Move to the next column
+                    col_idx += 1
+                    if col_idx >= num_columns:
+                        col_idx = 0  # Reset column index after every 'num_columns' items
+            else:
+                st.warning("No images found in the gallery. Please check the username and try again.")
     
     # Sidebar with social link and description
     st.sidebar.title("Follow Us")
