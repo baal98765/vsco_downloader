@@ -20,11 +20,6 @@ from bs4 import BeautifulSoup
 import aiohttp
 import aiofiles
 
-
-
-
-
-
 # Function to extract username from the VSCO URL
 def extract_username(url):
     match = re.search(r"vsco\.co/([^/]+)/", url)
@@ -215,7 +210,7 @@ def vsco_page():
 L = instaloader.Instaloader()
 
 # Define the session file path
-session_file_path = "session-baal123487"  # Update to match your actual session file path
+session_file_path = "session-lil.wasson.fanpage"  # Update to match your actual session file path
 
 # Ensure that the session file exists before loading
 if os.path.exists(session_file_path):
@@ -317,7 +312,6 @@ async def download_user_posts(username: str):
     except Exception as e:
         st.error(f"An error occurred while fetching posts: {e}")
 
-
 # Helper function to download stories asynchronously
 async def download_story_async(item, folder_path):
     await asyncio.to_thread(L.download_storyitem, item, target=folder_path)
@@ -365,50 +359,7 @@ async def download_user_stories(username: str):
 
     except Exception as e:
         st.error(f"An error occurred while fetching stories: {e}")
-# Helper function to download highlight media asynchronously
-async def download_highlight_async(item, folder_path):
-    await asyncio.to_thread(L.download_storyitem, item, target=folder_path)
 
-# Function to download highlights
-async def download_highlights(username: str):
-    try:
-        st.info(f"Fetching highlights for {username}...")
-
-        # Get profile object
-        profile = instaloader.Profile.from_username(L.context, username)
-
-        # Create a folder for highlights
-        folder_path = f"{username}_highlights"
-        if not os.path.exists(folder_path):
-            os.makedirs(folder_path)
-
-        # Fetch highlights
-        highlights = profile.get_highlight_posts()
-        highlight_files = []
-
-        # Create tasks for concurrent downloading of highlight media
-        tasks = []
-        for highlight in highlights:
-            for item in highlight.get_items():
-                tasks.append(download_highlight_async(item, folder_path))
-
-        # Wait for all tasks to complete
-        await asyncio.gather(*tasks)
-
-        # Check for valid media files (images/videos)
-        for filename in os.listdir(folder_path):
-            file_path = os.path.join(folder_path, filename)
-            if file_path.endswith(('jpg', 'jpeg', 'png', 'mp4')):
-                highlight_files.append(file_path)
-
-        if not highlight_files:
-            st.warning("No highlights found for this user.")
-            return []
-
-        return highlight_files
-
-    except Exception as e:
-        st.error(f"An error occurred while fetching highlights: {e}")
 # Helper function to download tagged media asynchronously
 async def download_tagged_async(post, folder_path):
     await asyncio.to_thread(L.download_post, post, target=folder_path)
@@ -420,6 +371,12 @@ async def download_tagged_media(username: str):
 
         # Get profile object
         profile = instaloader.Profile.from_username(L.context, username)
+
+        # Get total number of posts
+        total_posts = profile.mediacount
+        if total_posts > 400:
+            st.warning(f"Post limit exceeded! This user has {total_posts} posts. Maximum allowed is 400. Skipping tagged media fetch.")
+            return []
 
         # Fetch tagged media
         tagged_posts = list(profile.get_tagged_posts())
@@ -448,29 +405,7 @@ async def download_tagged_media(username: str):
 
     except Exception as e:
         st.error(f"An error occurred while fetching tagged media: {e}")
-
-# Function to handle private account download
-async def download_private_account(username: str, password: str):
-    try:
-        # Login to private account
-        L.context.log("Logging in with provided credentials...")
-        L.load_session_from_file(username)  # Attempt to load session
-
-        if not L.context.is_logged_in:
-            L.context.log("Session not loaded. Logging in with username/password.")
-            L.context.username = username
-            L.context.password = password
-            L.context.log("Logging in... Please wait.")
-            L.context.do_login()  # Perform login
-            L.save_session_to_file()  # Save session for future use
-            st.success(f"Session loaded for username {username}!")
-
-        return True
-    except Exception as e:
-        st.error(f"Error logging in: {e}")
-        return False
-
-# Function to display media in a grid layout
+# Helper function to display media in a grid layout
 def display_media_in_grid(media_files):
     cols = st.columns(3)  # Adjust this number to change the number of columns
     col_idx = 0
@@ -503,42 +438,13 @@ def instagram_page():
     # Input field for Instagram Username
     username = st.text_input("Enter Instagram Username", placeholder="e.g., natgeo", key="username_input")
 
-    # Add tabs for Posts, Stories, and Tagged Media, and a sub-tab for Private Account
-    tabs = st.tabs(["📷 Posts", "📖 Stories", "🏷️ Tagged Media", "🔐 Highlights"])
+    # Add tabs for Posts, Stories, and Tagged Media
+    tabs = st.tabs(["📷 Posts", "📖 Stories", "🏷️ Tagged Media"])
 
     # Variables to store media files
     post_files, story_files, tagged_files = [], [], []
 
-    # Private Account Tab
-    with tabs[3]:
-        st.markdown("<h3 style='font-family: \"Instagram Sans\", sans-serif;'>Private Account Login</h3>", unsafe_allow_html=True)
-
-        # Only show login fields if the "Private Account" tab is selected
-        private_username = st.text_input("Your Insta Account Username", placeholder="e.g., username", key="private_username")
-        private_password = st.text_input("Your Insta Account Password", type="password", placeholder="Your password", key="private_password")
-
-        if private_username and private_password:
-            if st.button("📥 Login & Fetch Private Account Media"):
-                logged_in = asyncio.run(download_private_account(private_username, private_password))
-                if logged_in:
-                    st.success("Login successful. You can now download media.")
-                    # Now you can fetch posts, stories, or tagged media from the private account
-                    if st.button("📥 Fetch Private Posts"):
-                        post_files = asyncio.run(download_user_posts(private_username))
-                        if post_files:
-                            display_media_in_grid(post_files)
-                    if st.button("📥 Fetch Private Stories"):
-                        story_files = asyncio.run(download_user_stories(private_username))
-                        if story_files:
-                            display_media_in_grid(story_files)
-                    if st.button("📥 Fetch Tagged Media"):
-                        tagged_files = asyncio.run(download_tagged_media(private_username))
-                        if tagged_files:
-                            display_media_in_grid(tagged_files)
-        else:
-            st.warning("Please enter your username and password to login.")
-
-    # Handle Posts Tab
+    # Posts Tab
     with tabs[0]:
         if username:
             if st.button("📥 Fetch Posts"):
@@ -555,7 +461,7 @@ def instagram_page():
                     mime="application/zip"
                 )
 
-    # Handle Stories Tab
+    # Stories Tab
     with tabs[1]:
         if username:
             if st.button("📥 Fetch Stories"):
@@ -572,7 +478,7 @@ def instagram_page():
                     mime="application/zip"
                 )
 
-    # Handle Tagged Media Tab
+    # Tagged Media Tab
     with tabs[2]:
         if username:
             if st.button("📥 Fetch Tagged Media"):
@@ -588,25 +494,10 @@ def instagram_page():
                     file_name=f"{username}_tagged_media.zip",
                     mime="application/zip"
                 )
-                
-     # Handle Tagged Media Tab
-    with tabs[3]:
-        if username:
-            if st.button("📥 Fetch Highlights Media"):
-                highlights_files = asyncio.run(download_highlights(username))
-                if tagged_files:
-                    display_media_in_grid(tagged_files)
 
-            if tagged_files:
-                zip_buffer = zip_files(tagged_files, f"{username}_tagged_media")
-                st.download_button(
-                    label="💾 Download All Highlights Media",
-                    data=zip_buffer,
-                    file_name=f"{username}_Highlights_media.zip",
-                    mime="application/zip"
-                )
-                               
-                
+    if not username:
+        st.warning("Please enter a valid Instagram username.")
+        
 async def get_json(session, username):
     base_url = "https://story.snapchat.com/@"
     headers = {'User-Agent': 'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:94.0) Gecko/20100101 Firefox/103.0.2'}
