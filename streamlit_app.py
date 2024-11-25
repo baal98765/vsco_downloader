@@ -494,24 +494,6 @@ def instagram_page():
                     file_name=f"{username}_tagged_media.zip",
                     mime="application/zip"
                 )
-    # Tagged Media Tab
-    with tabs[3]:
-        if username:
-            if st.button("📥 Fetch Highlights"):
-                highlight_files = asyncio.run(download_highlights(username))
-                if highlight_files:
-                    display_media_in_grid(highlight_files)
-
-            if highlight_files:
-                zip_buffer = zip_files(highlight_files, f"{username}_highlights_media")
-                st.download_button(
-                    label="💾 Download All Highlights Media",
-                    data=zip_buffer,
-                    file_name=f"{username}_highlights_media.zip",
-                    mime="application/zip"
-                )
-    if not username:
-        st.warning("Please enter a valid Instagram username.")
         
 async def get_json(session, username):
     base_url = "https://story.snapchat.com/@"
