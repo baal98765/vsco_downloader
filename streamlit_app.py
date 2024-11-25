@@ -372,20 +372,30 @@ async def download_tagged_media(username: str):
         # Get profile object
         profile = instaloader.Profile.from_username(L.context, username)
 
+        # Get total number of tagged posts
+        total_tagged_posts = len(list(profile.get_tagged_posts()))
+        if total_tagged_posts > 400:
+            st.warning(f"Tagged media limit exceeded! This user has {total_tagged_posts} tagged posts. Maximum allowed is 400.")
+            return []
+
         # Fetch tagged media
-        tagged_posts = list(profile.get_tagged_posts())
+        tagged_posts = list(profile.get_tagged_posts())[:400]  # Limit to 400 tagged posts
+        folder_path = f"{username}_tagged"
         tagged_files = []
+
+        # Create the folder if it doesn't exist
+        if not os.path.exists(folder_path):
+            os.makedirs(folder_path)
 
         # Create tasks for concurrent downloading of tagged media
         tasks = []
         for post in tagged_posts:
-            tasks.append(download_tagged_async(post, f"{username}_tagged"))
+            tasks.append(download_tagged_async(post, folder_path))
 
         # Wait for all tasks to complete
         await asyncio.gather(*tasks)
 
         # Check for valid media files (images/videos)
-        folder_path = f"{username}_tagged"
         for filename in os.listdir(folder_path):
             file_path = os.path.join(folder_path, filename)
             if file_path.endswith(('jpg', 'jpeg', 'png', 'mp4')):
@@ -399,7 +409,6 @@ async def download_tagged_media(username: str):
 
     except Exception as e:
         st.error(f"An error occurred while fetching tagged media: {e}")
-
 # Helper function to display media in a grid layout
 def display_media_in_grid(media_files):
     cols = st.columns(3)  # Adjust this number to change the number of columns
