@@ -377,7 +377,7 @@ async def download_highlights(username: str):
         if not os.path.exists(folder_path):
             os.makedirs(folder_path)
 
-        # Fetch highlights using get_highlights()
+        # Fetch highlight ID's from the profile
         highlights = profile.get_highlights()
         highlight_files = []
 
