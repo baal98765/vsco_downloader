@@ -174,7 +174,7 @@ def vsco_page():
             media_urls = get_gallery_urls(username_input)
 
             if media_urls:
-                st.subheader(f"{username_input}'s Gallery")
+                st.subheader(f"{username_input}'s Recent Gallery")
 
                 # Create a list of columns for the grid layout
                 num_columns = 3
