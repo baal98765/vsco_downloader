@@ -344,30 +344,37 @@ def handle_tiktok_download(username: str, num_videos: int):
         st.error(f"An error occurred while downloading videos: {str(e)}")
 
 
-
- 
+# TikTok page with sub-tabs for URL input and username input
 def tiktok_page():
     st.title("📹 TikTok Video Downloader")
     st.markdown(
         """
-        This tool allows you to download recent videos from a TikTok user profile.
-        Simply enter the username and select the number of videos to fetch.
+        This tool allows you to download recent videos from a TikTok user profile or directly from a TikTok URL.
+        Simply enter the username or the URL, then select the number of videos to fetch.
         """
     )
 
     # Sub-tab for username input
     with st.expander("👤 Enter TikTok Username"):
         username = st.text_input("TikTok Username", placeholder="e.g., tiktok_username")
+    
+    # Sub-tab for URL input
+    with st.expander("🔗 Enter TikTok Video URL"):
+        url = st.text_input("TikTok Video URL", placeholder="e.g., https://www.tiktok.com/@username/video/1234567890")
 
     # Select number of videos
     num_videos = st.slider("Number of Videos to Download", min_value=1, max_value=20, value=10)
 
-    # Download button
+    # Determine which input is provided (username or URL)
     if st.button("📥 Fetch TikTok Videos"):
         if username:
             handle_tiktok_download(username, num_videos)
+        elif url and TikTokDownloader.validate_url(url):
+            # If a URL is entered and valid, extract the username and fetch videos
+            username_from_url = url.split('@')[1].split('/')[0]
+            handle_tiktok_download(username_from_url, num_videos)
         else:
-            st.warning("Please enter a valid TikTok username.")
+            st.warning("Please enter a valid TikTok username or URL.")
 
 # Initialize instaloader object
 L = instaloader.Instaloader()
