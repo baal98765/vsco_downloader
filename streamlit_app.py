@@ -709,6 +709,7 @@ def display_media_in_grid(media_files):
 
 # Streamlit UI
 def instagram_page():
+    reel_files = None    
     # Add custom CSS and other Streamlit UI components as needed
 
     # Input field for Instagram Username with a unique key
