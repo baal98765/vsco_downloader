@@ -380,7 +380,7 @@ def tiktok_page():
         url = st.text_input("TikTok Video URL", placeholder="e.g., https://www.tiktok.com/@username/video/1234567890")
 
     # Select number of videos (only for username)
-    num_videos = st.slider("Number of Videos to Download", min_value=1, max_value=20, value=10)
+    num_videos = st.slider("Number of Videos to Download", min_value=1, max_value=5, value=1)
 
     # Determine which input is provided (username or URL)
     if st.button("📥 Fetch TikTok Videos"):
