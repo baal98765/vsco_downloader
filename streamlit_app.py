@@ -321,7 +321,7 @@ class TikTokDownloader:
         return downloaded_files
 
 
-# Helper function to download and display TikTok videos
+# Helper function to download and display TikTok videos in a grid
 def handle_tiktok_download(username: str, num_videos: int):
     downloader = TikTokDownloader()
     st.info(f"Fetching videos for TikTok user: @{username}...")
@@ -331,11 +331,18 @@ def handle_tiktok_download(username: str, num_videos: int):
             st.warning("No videos downloaded. Check username or try again later.")
         else:
             st.success(f"Downloaded {len(video_files)} videos successfully!")
-            for file_path in video_files:
-                if file_path.endswith(".mp4"):
-                    st.video(file_path, format="video/mp4")
+
+            # Display videos in a grid layout
+            num_columns = 3  # Number of videos per row
+            for i in range(0, len(video_files), num_columns):
+                cols = st.columns(num_columns)  # Create columns for the row
+                for col, file_path in zip(cols, video_files[i:i+num_columns]):
+                    if file_path.endswith(".mp4"):
+                        col.video(file_path, format="video/mp4")
+                        col.caption(f"Video: {file_path.split('/')[-1]}")
     except Exception as e:
         st.error(f"An error occurred while downloading videos: {str(e)}")
+
 
 
  
