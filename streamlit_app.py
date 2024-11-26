@@ -262,8 +262,6 @@ class TikTokDownloader:
             'noplaylist': True,
             'quiet': False,
             'progress_hooks': [self.progress_hook],
-            'cookiesfrombrowser': ('chrome',),
-            'extractor_args': {'tiktok': {'webpage_download': True}},
             'http_headers': {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
             },
@@ -280,9 +278,9 @@ class TikTokDownloader:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 ydl.download([video_url])
 
-            # Check the file size, skip if over 20MB
+            # Check the file size, skip if over 100MB
             if os.path.getsize(output_path) > 100 * 1024 * 1024:
-                print(f"File {filename} is too large (>20MB), skipping.")
+                print(f"File {filename} is too large (>100MB), skipping.")
                 os.remove(output_path)
                 return None
 
