@@ -340,7 +340,7 @@ def handle_tiktok_download(username: str, num_videos: int):
         st.error(f"An error occurred while downloading videos: {str(e)}")
 
 
- Streamlit app structure
+ 
 def tiktok_page():
     st.title("📹 TikTok Video Downloader")
     st.markdown(
