@@ -204,7 +204,7 @@ def vsco_page():
     # Informative description in the sidebar
     st.sidebar.subheader("About This Site")
     st.sidebar.markdown("""
-    This website is created by **TTKgroups**. You can use this tool to download media from various platforms like **VSCO**, **Instagram**, **Snapchat**, and more coming soon!
+    This website is created by **TTKgroups**. You can use this tool to download media from various platforms like **VSCO**, **Instagram**, **Snapchat**, **Tiktok** and more coming soon!
 
     Stay tuned for additional features and support for more platforms!
     """)
