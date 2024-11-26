@@ -3,6 +3,8 @@ from vsco_downloader import download as vsco_download
 import instaloader
 import requests
 import os
+from typing import Optional, List
+import yt_dlp
 import shutil
 from datetime import datetime
 import asyncio
@@ -206,6 +208,161 @@ def vsco_page():
 
     Stay tuned for additional features and support for more platforms!
     """)
+
+class TikTokDownloader:
+    def __init__(self, save_path: str = 'tiktok_videos'):
+        self.save_path = save_path
+        self.create_save_directory()
+
+    def create_save_directory(self) -> None:
+        """Create the save directory if it doesn't exist."""
+        if not os.path.exists(self.save_path):
+            os.makedirs(self.save_path)
+
+    @staticmethod
+    def validate_url(url: str) -> bool:
+        """Validate if the provided URL is a TikTok URL."""
+        tiktok_pattern = r'https?://((?:vm|vt|www)\.)?tiktok\.com/.*'
+        return bool(re.match(tiktok_pattern, url))
+
+    @staticmethod
+    def get_username_video_url(username: str) -> str:
+        """Construct TikTok video URL from username."""
+        return f'https://www.tiktok.com/@{username}'
+
+    @staticmethod
+    def progress_hook(d: dict) -> None:
+        """Hook to display download progress."""
+        if d['status'] == 'downloading':
+            progress = d.get('_percent_str', 'N/A')
+            speed = d.get('_speed_str', 'N/A')
+            eta = d.get('_eta_str', 'N/A')
+            print(f"Downloading: {progress} at {speed} ETA: {eta}", end='\r')
+        elif d['status'] == 'finished':
+            print("\nDownload completed, finalizing...")
+
+    def get_filename(self, video_url: str, custom_name: Optional[str] = None) -> str:
+        """Generate filename for the video."""
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        if custom_name:
+            return f"{custom_name}_{timestamp}.mp4"
+        return f"tiktok_{timestamp}.mp4"
+
+    def download_video(self, video_url: str, custom_name: Optional[str] = None) -> Optional[str]:
+        """Download a TikTok video."""
+        if not self.validate_url(video_url):
+            return None
+
+        filename = self.get_filename(video_url, custom_name)
+        output_path = os.path.join(self.save_path, filename)
+
+        ydl_opts = {
+            'outtmpl': output_path,
+            'format': 'bestvideo+bestaudio/best',
+            'noplaylist': True,
+            'quiet': False,
+            'progress_hooks': [self.progress_hook],
+            'cookiesfrombrowser': ('chrome',),
+            'extractor_args': {'tiktok': {'webpage_download': True}},
+            'http_headers': {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+            },
+            'no_postoverwrites': True,
+            'postprocessors': [
+                {
+                    'key': 'FFmpegVideoConvertor',
+                    'preferedformat': 'mp4',
+                }
+            ],
+        }
+
+        try:
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                ydl.download([video_url])
+
+            # Check the file size, skip if over 20MB
+            if os.path.getsize(output_path) > 100 * 1024 * 1024:
+                print(f"File {filename} is too large (>20MB), skipping.")
+                os.remove(output_path)
+                return None
+
+            return output_path
+        except yt_dlp.utils.DownloadError as e:
+            print(f"Error downloading video: {str(e)}")
+        except Exception as e:
+            print(f"An unexpected error occurred: {str(e)}")
+
+        return None
+
+    def download_recent_videos(self, username: str, num_videos: int = 10) -> List[str]:
+        """Download the latest videos from a user's TikTok profile."""
+        video_urls = []
+        profile_url = self.get_username_video_url(username)
+
+        # Use yt_dlp to fetch the recent video URLs from the TikTok profile page
+        ydl_opts = {
+            'quiet': True,
+            'extract_flat': True,
+            'noplaylist': True,
+            'force_generic_extractor': True,
+        }
+
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            result = ydl.extract_info(profile_url, download=False)
+            # Extract video URLs, limit to the first 'num_videos'
+            for video in result['entries'][:num_videos]:
+                video_urls.append(video['url'])
+
+        # Download the videos, skipping large files
+        downloaded_files = []
+        for url in video_urls:
+            file_path = self.download_video(url)
+            if file_path:
+                downloaded_files.append(file_path)
+
+        return downloaded_files
+
+
+# Helper function to download and display TikTok videos
+def handle_tiktok_download(username: str, num_videos: int):
+    downloader = TikTokDownloader()
+    st.info(f"Fetching videos for TikTok user: @{username}...")
+    try:
+        video_files = downloader.download_recent_videos(username, num_videos=num_videos)
+        if not video_files:
+            st.warning("No videos downloaded. Check username or try again later.")
+        else:
+            st.success(f"Downloaded {len(video_files)} videos successfully!")
+            for file_path in video_files:
+                if file_path.endswith(".mp4"):
+                    st.video(file_path, format="video/mp4")
+    except Exception as e:
+        st.error(f"An error occurred while downloading videos: {str(e)}")
+
+
+ Streamlit app structure
+def tiktok_page():
+    st.title("📹 TikTok Video Downloader")
+    st.markdown(
+        """
+        This tool allows you to download recent videos from a TikTok user profile.
+        Simply enter the username and select the number of videos to fetch.
+        """
+    )
+
+    # Sub-tab for username input
+    with st.expander("👤 Enter TikTok Username"):
+        username = st.text_input("TikTok Username", placeholder="e.g., tiktok_username")
+
+    # Select number of videos
+    num_videos = st.slider("Number of Videos to Download", min_value=1, max_value=20, value=10)
+
+    # Download button
+    if st.button("📥 Fetch TikTok Videos"):
+        if username:
+            handle_tiktok_download(username, num_videos)
+        else:
+            st.warning("Please enter a valid TikTok username.")
 
 # Initialize instaloader object
 L = instaloader.Instaloader()
@@ -808,15 +965,26 @@ def main():
     )
 
     # Top menu bar with tabs
-    tabs = st.tabs(["VSCO Downloader", "Instagram Downloader", "Snapchat Downloader"])
+    tabs = st.tabs([
+        "VSCO Downloader", 
+        "Instagram Downloader", 
+        "Snapchat Downloader", 
+        "TikTok Downloader"
+    ])
 
     with tabs[0]:
-        vsco_page()
+        vsco_page()  # Ensure the vsco_page() function is defined elsewhere
 
     with tabs[1]:
-        instagram_page()
+        instagram_page()  # Ensure the instagram_page() function is defined elsewhere
+
     with tabs[2]:
-        snapchat_page()
+        snapchat_page()  # Ensure the snapchat_page() function is defined elsewhere
+
+    with tabs[3]:
+        tiktok_page()  # TikTok downloader page added
+
 
 if __name__ == "__main__":
     main()
+
