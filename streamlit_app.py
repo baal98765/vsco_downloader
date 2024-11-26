@@ -803,6 +803,7 @@ def instagram_page():
                 if reel_files:
                     display_media_in_grid(reel_files)
 
+            # Only allow this block to run if reel_files is successfully assigned
             if reel_files:
                 zip_buffer = zip_files(reel_files, f"{username}_reels_media")
                 st.download_button(
