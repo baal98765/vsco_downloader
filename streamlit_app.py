@@ -12,6 +12,7 @@ import instaloader
 from zipfile import ZipFile
 import time
 import io
+from io import BytesIO
 import re
 import urllib.request as ur
 import traceback as tb
@@ -22,6 +23,83 @@ import requests
 from bs4 import BeautifulSoup
 import aiohttp
 import aiofiles
+
+
+
+
+REDDIT_API_URL = "https://www.reddit.com/r/{}/new.json?limit=20"
+
+async def fetch_reddit_posts(subreddit, session):
+    """Fetch new posts from a given subreddit."""
+    url = REDDIT_API_URL.format(subreddit)
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3',
+        'Accept': 'application/json',
+        'Connection': 'keep-alive',
+    }
+
+    async with session.get(url, headers=headers) as response:
+        if response.status == 200:
+            data = await response.json()
+            posts = data.get('data', {}).get('children', [])
+            # Extract posts with valid image URLs
+            image_posts = [(post['data']['url'], post['data']['title']) for post in posts
+                           if post['data']['url'] and post['data']['url'].endswith(('.jpg', '.png', '.jpeg'))]
+            return image_posts
+        else:
+            return []
+
+async def download_images(image_posts):
+    """Download images from the fetched posts."""
+    async with aiohttp.ClientSession() as session:
+        tasks = [session.get(url) for url, _ in image_posts]
+        responses = await asyncio.gather(*tasks)
+        return [(response.url.name, await response.read()) for response in responses if response.status == 200]
+
+def display_images_in_grid(image_files):
+    """Display images in a grid."""
+    cols = st.columns(4)  # Adjust the number of columns as needed
+    for i, (image_name, image_data) in enumerate(image_files):
+        with cols[i % 4]:
+            st.image(Image.open(BytesIO(image_data)), caption=image_name, use_column_width=True)
+
+def reddit_page():
+    st.title("📥 Reddit Downloader")
+    st.write("Fetch up to 20 image posts from a subreddit.")
+
+    subreddit = st.text_input("Enter Subreddit Name:", placeholder="e.g., earthporn", key="subreddit")
+    if subreddit:
+        if st.button("Fetch Posts"):
+            st.info("Fetching posts... Please wait.")
+            asyncio.run(fetch_and_display_reddit_posts(subreddit))
+
+async def fetch_and_display_reddit_posts(subreddit):
+    """Fetch and display image posts from the subreddit."""
+    async with aiohttp.ClientSession() as session:
+        posts = await fetch_reddit_posts(subreddit, session)
+        if posts:
+            st.success(f"Found {len(posts)} image posts in r/{subreddit}.")
+            # Download images
+            image_files = await download_images(posts)
+            display_images_in_grid(image_files)
+
+            # Provide download option as ZIP
+            zip_buffer = BytesIO()
+            with ZipFile(zip_buffer, 'w') as zip_file:
+                for name, data in image_files:
+                    zip_file.writestr(name, data)
+            zip_buffer.seek(0)
+
+            st.download_button(
+                label="💾 Download All Images",
+                data=zip_buffer,
+                file_name=f"{subreddit}_images.zip",
+                mime="application/zip",
+            )
+        else:
+            st.error(f"No image posts found in r/{subreddit}.")
+
+
 
 # Function to extract username from the VSCO URL
 def extract_username(url):
@@ -999,7 +1077,8 @@ def main():
         "VSCO Downloader", 
         "Instagram Downloader", 
         "Snapchat Downloader", 
-        "TikTok Downloader"
+        "TikTok Downloader",
+        "Reddit Downloader"
     ])
 
     with tabs[0]:
@@ -1013,7 +1092,9 @@ def main():
 
     with tabs[3]:
         tiktok_page()  # TikTok downloader page added
-
+    
+    with tabs[4]:
+        reddit_page()
 
 if __name__ == "__main__":
     main()
