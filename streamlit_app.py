@@ -32,6 +32,8 @@ REDDIT_API_URL = "https://www.reddit.com/r/{}/new.json?limit=20"
 async def fetch_reddit_posts(subreddit, session):
     """Fetch new posts from a given subreddit."""
     url = REDDIT_API_URL.format(subreddit)
+    print(f"Fetching posts from: {url}")  # Debug
+
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3',
         'Accept': 'application/json',
@@ -39,25 +41,35 @@ async def fetch_reddit_posts(subreddit, session):
     }
 
     async with session.get(url, headers=headers) as response:
+        print(f"Response status code: {response.status}")  # Debug
         if response.status == 200:
             data = await response.json()
+            print(f"Fetched data: {data}")  # Debug
             posts = data.get('data', {}).get('children', [])
+            print(f"Number of posts fetched: {len(posts)}")  # Debug
+
             # Extract posts with valid image URLs
             image_posts = [(post['data']['url'], post['data']['title']) for post in posts
                            if post['data']['url'] and post['data']['url'].endswith(('.jpg', '.png', '.jpeg'))]
+            print(f"Number of image posts: {len(image_posts)}")  # Debug
             return image_posts
         else:
+            print("Failed to fetch posts.")  # Debug
             return []
 
 async def download_images(image_posts):
     """Download images from the fetched posts."""
+    print(f"Starting download of {len(image_posts)} images.")  # Debug
     async with aiohttp.ClientSession() as session:
         tasks = [session.get(url) for url, _ in image_posts]
         responses = await asyncio.gather(*tasks)
+
+        print("Completed downloads.")  # Debug
         return [(response.url.name, await response.read()) for response in responses if response.status == 200]
 
 def display_images_in_grid(image_files):
     """Display images in a grid."""
+    print(f"Displaying {len(image_files)} images.")  # Debug
     cols = st.columns(4)  # Adjust the number of columns as needed
     for i, (image_name, image_data) in enumerate(image_files):
         with cols[i % 4]:
@@ -71,6 +83,7 @@ def reddit_page():
     if subreddit:
         if st.button("Fetch Posts"):
             st.info("Fetching posts... Please wait.")
+            print(f"Fetching posts for subreddit: {subreddit}")  # Debug
             asyncio.run(fetch_and_display_reddit_posts(subreddit))
 
 async def fetch_and_display_reddit_posts(subreddit):
@@ -78,9 +91,12 @@ async def fetch_and_display_reddit_posts(subreddit):
     async with aiohttp.ClientSession() as session:
         posts = await fetch_reddit_posts(subreddit, session)
         if posts:
+            print(f"Fetched {len(posts)} valid image posts.")  # Debug
             st.success(f"Found {len(posts)} image posts in r/{subreddit}.")
+            
             # Download images
             image_files = await download_images(posts)
+            print(f"Downloaded {len(image_files)} images.")  # Debug
             display_images_in_grid(image_files)
 
             # Provide download option as ZIP
@@ -97,6 +113,7 @@ async def fetch_and_display_reddit_posts(subreddit):
                 mime="application/zip",
             )
         else:
+            print(f"No valid image posts found for r/{subreddit}.")  # Debug
             st.error(f"No image posts found in r/{subreddit}.")
 
 
