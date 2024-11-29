@@ -26,102 +26,6 @@ import aiofiles
 
 
 
-REDDIT_API_URL = "https://www.reddit.com/r/{}/new.json?limit=20"
-
-async def fetch_reddit_posts(subreddit, session):
-    """Fetch new posts from a given subreddit."""
-    url = REDDIT_API_URL.format(subreddit)
-    print(f"Fetching posts from: {url}")  # Debug
-
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:102.0) Gecko/20100101 Firefox/102.0',
-        'Accept': 'application/json, text/plain, */*',
-        'Accept-Language': 'en-US,en;q=0.9',
-        'Accept-Encoding': 'gzip, deflate, br',
-        'Connection': 'keep-alive',
-        'Cache-Control': 'no-cache',
-        'DNT': '1',  # Do Not Track request
-        'Sec-Fetch-Dest': 'empty',
-        'Sec-Fetch-Mode': 'cors',
-        'Sec-Fetch-Site': 'same-origin',
-        'Upgrade-Insecure-Requests': '1',
-        'Pragma': 'no-cache',
-    }
-
-
-    async with session.get(url, headers=headers) as response:
-        print(f"Response status code: {response.status}")  # Debug
-        if response.status == 200:
-            data = await response.json()
-            print(f"Fetched data: {data}")  # Debug
-            posts = data.get('data', {}).get('children', [])
-            print(f"Number of posts fetched: {len(posts)}")  # Debug
-
-            # Extract posts with valid image URLs
-            image_posts = [(post['data']['url'], post['data']['title']) for post in posts
-                           if post['data']['url'] and post['data']['url'].endswith(('.jpg', '.png', '.jpeg'))]
-            print(f"Number of image posts: {len(image_posts)}")  # Debug
-            return image_posts
-        else:
-            print("Failed to fetch posts.")  # Debug
-            return []
-
-async def download_image(url, session):
-    """Download a single image."""
-    try:
-        print(f"Downloading image: {url}")  # Debug
-        async with session.get(url) as response:
-            if response.status == 200:
-                image_data = await response.read()
-                print(f"Downloaded image: {url}")  # Debug
-                return Image.open(BytesIO(image_data))
-            else:
-                print(f"Failed to download image: {url}, Status code: {response.status}")  # Debug
-                return None
-    except Exception as e:
-        print(f"Error downloading image {url}: {e}")  # Debug
-        return None
-
-async def download_and_display_images(image_posts):
-    """Download images concurrently and display them as they are fetched."""
-    print(f"Starting concurrent download of {len(image_posts)} images.")  # Debug
-    async with aiohttp.ClientSession() as session:
-        tasks = [download_image(url, session) for url, title in image_posts]
-        cols = st.columns(4)  # Adjust the number of columns as needed
-
-        for i, task in enumerate(asyncio.as_completed(tasks)):
-            image = await task
-            if image:
-                title = image_posts[i][1]
-                with cols[i % 4]:
-                    st.image(image, caption=title, use_container_width=True)
-                    print(f"Displayed image: {title}")  # Debug
-
-def reddit_page():
-    st.title("📥 Reddit Downloader")
-    st.write("Fetch up to 20 image posts from a subreddit.")
-
-    subreddit = st.text_input("Enter Subreddit Name:", placeholder="e.g., earthporn", key="subreddit")
-    if subreddit:
-        if st.button("Fetch Posts"):
-            st.info("Fetching posts... Please wait.")
-            print(f"Fetching posts for subreddit: {subreddit}")  # Debug
-            asyncio.run(fetch_and_display_reddit_posts(subreddit))
-
-async def fetch_and_display_reddit_posts(subreddit):
-    """Fetch and display image posts from the subreddit."""
-    async with aiohttp.ClientSession() as session:
-        posts = await fetch_reddit_posts(subreddit, session)
-        if posts:
-            print(f"Fetched {len(posts)} valid image posts.")  # Debug
-            st.success(f"Found {len(posts)} image posts in r/{subreddit}.")
-
-            # Concurrently download and display images
-            await download_and_display_images(posts)
-        else:
-            print(f"No valid image posts found for r/{subreddit}.")  # Debug
-            st.error(f"No image posts found in r/{subreddit}.")
-
 
 
 
@@ -1101,8 +1005,7 @@ def main():
         "VSCO Downloader", 
         "Instagram Downloader", 
         "Snapchat Downloader", 
-        "TikTok Downloader",
-        "Reddit Downloader"
+        "TikTok Downloader"
     ])
 
     with tabs[0]:
@@ -1117,8 +1020,7 @@ def main():
     with tabs[3]:
         tiktok_page()  # TikTok downloader page added
     
-    with tabs[4]:
-        reddit_page()
+
 
 if __name__ == "__main__":
     main()
