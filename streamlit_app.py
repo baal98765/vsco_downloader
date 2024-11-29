@@ -8,7 +8,6 @@ import yt_dlp
 import shutil
 from datetime import datetime
 import asyncio
-import instaloader
 from zipfile import ZipFile
 import time
 import io
@@ -35,10 +34,20 @@ async def fetch_reddit_posts(subreddit, session):
     print(f"Fetching posts from: {url}")  # Debug
 
     headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3',
-        'Accept': 'application/json',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:102.0) Gecko/20100101 Firefox/102.0',
+        'Accept': 'application/json, text/plain, */*',
+        'Accept-Language': 'en-US,en;q=0.9',
+        'Accept-Encoding': 'gzip, deflate, br',
         'Connection': 'keep-alive',
+        'Cache-Control': 'no-cache',
+        'DNT': '1',  # Do Not Track request
+        'Sec-Fetch-Dest': 'empty',
+        'Sec-Fetch-Mode': 'cors',
+        'Sec-Fetch-Site': 'same-origin',
+        'Upgrade-Insecure-Requests': '1',
+        'Pragma': 'no-cache',
     }
+
 
     async with session.get(url, headers=headers) as response:
         print(f"Response status code: {response.status}")  # Debug
@@ -57,23 +66,36 @@ async def fetch_reddit_posts(subreddit, session):
             print("Failed to fetch posts.")  # Debug
             return []
 
-async def download_images(image_posts):
-    """Download images from the fetched posts."""
-    print(f"Starting download of {len(image_posts)} images.")  # Debug
+async def download_image(url, session):
+    """Download a single image."""
+    try:
+        print(f"Downloading image: {url}")  # Debug
+        async with session.get(url) as response:
+            if response.status == 200:
+                image_data = await response.read()
+                print(f"Downloaded image: {url}")  # Debug
+                return Image.open(BytesIO(image_data))
+            else:
+                print(f"Failed to download image: {url}, Status code: {response.status}")  # Debug
+                return None
+    except Exception as e:
+        print(f"Error downloading image {url}: {e}")  # Debug
+        return None
+
+async def download_and_display_images(image_posts):
+    """Download images concurrently and display them as they are fetched."""
+    print(f"Starting concurrent download of {len(image_posts)} images.")  # Debug
     async with aiohttp.ClientSession() as session:
-        tasks = [session.get(url) for url, _ in image_posts]
-        responses = await asyncio.gather(*tasks)
+        tasks = [download_image(url, session) for url, title in image_posts]
+        cols = st.columns(4)  # Adjust the number of columns as needed
 
-        print("Completed downloads.")  # Debug
-        return [(response.url.name, await response.read()) for response in responses if response.status == 200]
-
-def display_images_in_grid(image_files):
-    """Display images in a grid."""
-    print(f"Displaying {len(image_files)} images.")  # Debug
-    cols = st.columns(4)  # Adjust the number of columns as needed
-    for i, (image_name, image_data) in enumerate(image_files):
-        with cols[i % 4]:
-            st.image(Image.open(BytesIO(image_data)), caption=image_name, use_column_width=True)
+        for i, task in enumerate(asyncio.as_completed(tasks)):
+            image = await task
+            if image:
+                title = image_posts[i][1]
+                with cols[i % 4]:
+                    st.image(image, caption=title, use_container_width=True)
+                    print(f"Displayed image: {title}")  # Debug
 
 def reddit_page():
     st.title("📥 Reddit Downloader")
@@ -93,28 +115,13 @@ async def fetch_and_display_reddit_posts(subreddit):
         if posts:
             print(f"Fetched {len(posts)} valid image posts.")  # Debug
             st.success(f"Found {len(posts)} image posts in r/{subreddit}.")
-            
-            # Download images
-            image_files = await download_images(posts)
-            print(f"Downloaded {len(image_files)} images.")  # Debug
-            display_images_in_grid(image_files)
 
-            # Provide download option as ZIP
-            zip_buffer = BytesIO()
-            with ZipFile(zip_buffer, 'w') as zip_file:
-                for name, data in image_files:
-                    zip_file.writestr(name, data)
-            zip_buffer.seek(0)
-
-            st.download_button(
-                label="💾 Download All Images",
-                data=zip_buffer,
-                file_name=f"{subreddit}_images.zip",
-                mime="application/zip",
-            )
+            # Concurrently download and display images
+            await download_and_display_images(posts)
         else:
             print(f"No valid image posts found for r/{subreddit}.")  # Debug
             st.error(f"No image posts found in r/{subreddit}.")
+
 
 
 
