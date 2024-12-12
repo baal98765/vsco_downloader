@@ -935,20 +935,23 @@ def snapchat_page():
     # Add Snapchat Logo at the top
     snapchat_logo_url = "https://postcron.com/en/blog/wp-content/uploads/2017/10/snapchat-logo.png"  # Snapchat logo URL
     st.image(snapchat_logo_url, width=200, caption="Snapchat")  # Adjust width and caption as needed
-    
+
     # Snapchat title with a custom font (you can adjust the font style in the CSS)
     st.markdown("<h1 style='text-align: center; font-family: \"Snapchat\", sans-serif;'>👻 Snapchat Media Viewer</h1>", unsafe_allow_html=True)
-    
+
     st.markdown(
         "<p style='text-align: center; font-family: \"Snapchat\", sans-serif;'>View and download Snapchat media effortlessly!</p>",
         unsafe_allow_html=True,
     )
-    
+
     # Input field for Snapchat Username
     username = st.text_input("Enter Snapchat Username:")
 
     if st.button("Fetch Snaps"):
         if username:
+            # Display a message indicating fetching snaps for the username
+            st.markdown(f"<p style='font-family: \"Snapchat\", sans-serif; color: gray;'>Fetching snaps from <strong>{username}</strong>...</p>", unsafe_allow_html=True)
+
             async def display_media():
                 async with aiohttp.ClientSession() as session:
                     json_data = await get_json(session, username)
@@ -981,6 +984,7 @@ def snapchat_page():
             asyncio.run(display_media())
         else:
             st.error("Please enter a valid Snapchat username.")
+
 
 # Custom CSS for Snapchat font
 def add_custom_css():
