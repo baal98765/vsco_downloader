@@ -512,7 +512,7 @@ async def download_user_posts(username: str, since_date: datetime = None, until_
 
         # Get total number of posts
         total_posts = profile.mediacount
-        if total_posts > 750:
+        if total_posts > 400:
             st.warning(f"Post limit exceeded! This user has {total_posts} posts. Maximum allowed is 400.")
             return []
 
