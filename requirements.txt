@@ -1,8 +1,1 @@
-yt_dlp
-streamlit
-vsco-downloader
-instaloader
-requests
-beautifulsoup4
-aiohttp
-aiofiles
+
