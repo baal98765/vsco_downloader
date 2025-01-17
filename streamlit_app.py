@@ -25,7 +25,15 @@ import aiofiles
 from subprocess import Popen, PIPE
 
 
-
+def display_media_in_grid(media_files, num_cols=4):
+    """Displays media files in a grid layout."""
+    cols = st.columns(num_cols)  # Number of columns for the grid
+    for idx, media in enumerate(media_files):
+        with cols[idx % num_cols]:  # Rotate through columns
+            if media.lower().endswith(('.png', '.jpg', '.jpeg')):
+                st.image(media, use_container_width=True)
+            elif media.lower().endswith(('.mp4', '.mov')):
+                st.video(media)
 
 def run_gallery_dl(username):
     """Runs gallery-dl to download VSCO gallery for a given username."""
@@ -239,7 +247,43 @@ def vsco_page():
             else:
                 st.error("Failed to fetch gallery. Please check the username.")
                 st.error(stderr)
-    
+        with tabs[2]:  # "User Gallery Viewer" tab
+        st.subheader("User Gallery Viewer")
+
+        username_input = st.text_input(
+            "Enter a VSCO Username to View Gallery:",
+            placeholder="username",
+            key="user_gallery_viewer"
+        )
+
+        if username_input:
+            st.info(f"Fetching gallery for username: {username_input}")
+
+            # Create a temporary directory for downloads
+            with tempfile.TemporaryDirectory() as temp_dir:
+                download_dir = os.path.join(temp_dir, username_input)
+                os.makedirs(download_dir, exist_ok=True)
+
+                # Run gallery-dl to download media
+                returncode, stdout, stderr = run_gallery_dl(username_input, download_dir)
+                if returncode == 0:
+                    st.success("Gallery downloaded successfully!")
+
+                    # List media files (limit to 100)
+                    media_files = [
+                        os.path.join(download_dir, f)
+                        for f in os.listdir(download_dir)
+                        if f.lower().endswith(('.png', '.jpg', '.jpeg', '.mp4', '.mov'))
+                    ][:100]
+
+                    if media_files:
+                        st.write(f"Displaying the first {len(media_files)} posts:")
+                        display_media_in_grid(media_files, num_cols=4)
+                    else:
+                        st.warning("No media found in the gallery.")
+                else:
+                    st.error("Failed to fetch gallery. Please check the username.")
+                    st.error(stderr)
     # Sidebar with social link and description
     st.sidebar.title("Follow Us")
     st.sidebar.markdown("[Telegram](https://t.me/TTKgroups)")
