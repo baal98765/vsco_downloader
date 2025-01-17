@@ -1007,7 +1007,6 @@ def main():
     # Top menu bar with tabs
     tabs = st.tabs([
         "VSCO Downloader", 
-        "Instagram Downloader", 
         "Snapchat Downloader", 
         "TikTok Downloader"
     ])
@@ -1016,16 +1015,12 @@ def main():
         vsco_page()  # Ensure the vsco_page() function is defined elsewhere
 
     with tabs[1]:
-        instagram_page()  # Ensure the instagram_page() function is defined elsewhere
-
-    with tabs[2]:
         snapchat_page()  # Ensure the snapchat_page() function is defined elsewhere
 
-    with tabs[3]:
+    with tabs[2]:
         tiktok_page()  # TikTok downloader page added
     
 
 
 if __name__ == "__main__":
     main()
-
