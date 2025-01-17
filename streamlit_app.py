@@ -36,12 +36,13 @@ def display_media_in_grid(media_files, num_cols=4):
             elif media.lower().endswith(('.mp4', '.mov')):
                 st.video(media)
 
-def run_gallery_dl(username):
+def run_gallery_dl(username, download_dir):
     """Runs gallery-dl to download VSCO gallery for a given username."""
-    command = ["gallery-dl", f"https://vsco.co/{username}/gallery", "-d", f"downloads/{username}"]
+    command = ["gallery-dl", f"https://vsco.co/{username}/gallery", "-d", download_dir]
     process = Popen(command, stdout=PIPE, stderr=PIPE)
     stdout, stderr = process.communicate()
     return process.returncode, stdout.decode(), stderr.decode()
+
 
 def create_zip_files(user_dir, max_size):
     """Creates zip files of downloaded media, limiting each zip to max_size."""
