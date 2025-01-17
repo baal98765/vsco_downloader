@@ -139,7 +139,7 @@ def vsco_page():
     st.markdown(general_description)
 
     # Create tabs for different sections
-    tabs = st.tabs(["Extract Post Media", "User Gallery"])
+    tabs = st.tabs(["Extract Post Media", "User Gallery", "User Gallery Viewer"])
 
     with tabs[0]:  # "Extract Post Media" tab
         st.subheader("Extract Post Media")
@@ -247,7 +247,8 @@ def vsco_page():
             else:
                 st.error("Failed to fetch gallery. Please check the username.")
                 st.error(stderr)
-        with tabs[2]:  # "User Gallery Viewer" tab
+
+    with tabs[2]:  # "User Gallery Viewer" tab
         st.subheader("User Gallery Viewer")
 
         username_input = st.text_input(
