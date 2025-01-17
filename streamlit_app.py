@@ -227,18 +227,35 @@ def vsco_page():
                 # Create zip files
                 zip_files = create_zip_files(user_dir, max_zip_size)
 
-                # Display download links for zip files
-                for idx, zip_file in enumerate(zip_files, start=1):
-                    with open(zip_file, "rb") as f:
-                        st.download_button(
-                            label=f"Download Part {idx}",
-                            data=f,
-                            file_name=os.path.basename(zip_file),
-                            mime="application/zip",
-                        )
+                # Display media with download buttons in a grid layout
+                media_files = [
+                    os.path.join(root, file)
+                    for root, _, files in os.walk(user_dir)
+                    for file in files
+                ]
+                cols = st.columns(3)  # Create a 3-column grid
+
+                for idx, media_file in enumerate(media_files):
+                    col = cols[idx % 3]  # Rotate through columns
+                    with col:
+                        try:
+                            img = Image.open(media_file)
+                            st.image(img, caption=f"Media {idx + 1}", use_column_width=True)
+                        except:
+                            st.write(f"File: {os.path.basename(media_file)}")
+
+                        zip_file = zip_files[idx // len(media_files)]
+                        with open(zip_file, "rb") as f:
+                            st.download_button(
+                                label=f"Download Part {idx // len(media_files) + 1}",
+                                data=f,
+                                file_name=os.path.basename(zip_file),
+                                mime="application/zip",
+                            )
             else:
                 st.error("Failed to fetch gallery. Please check the username.")
                 st.error(stderr)
+
     
     # Sidebar with social link and description
     st.sidebar.title("Follow Us")
