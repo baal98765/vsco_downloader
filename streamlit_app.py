@@ -23,6 +23,7 @@ from bs4 import BeautifulSoup
 import aiohttp
 import aiofiles
 from subprocess import Popen, PIPE
+import tempfile
 
 
 def display_media_in_grid(media_files, num_cols=4):
