@@ -23,34 +23,37 @@ from bs4 import BeautifulSoup
 import aiohttp
 import aiofiles
 from subprocess import Popen, PIPE
+import tempfile
 
 
 
-
-def run_gallery_dl(username):
+def run_gallery_dl(username, download_dir):
     """Runs gallery-dl to download VSCO gallery for a given username."""
-    command = ["gallery-dl", f"https://vsco.co/{username}/gallery", "-d", f"downloads/{username}"]
+    command = ["gallery-dl", f"https://vsco.co/{username}/gallery", "-d", download_dir]
     process = Popen(command, stdout=PIPE, stderr=PIPE)
     stdout, stderr = process.communicate()
     return process.returncode, stdout.decode(), stderr.decode()
 
-def create_zip_files(user_dir, max_size):
+
+def create_zip_files(user_dir, max_size, temp_dir):
     """Creates zip files of downloaded media, limiting each zip to max_size."""
     part_index = 1
     current_zip_size = 0
     zip_files = []
-    zip_filename = f"{user_dir}_media_part_{part_index}.zip"
-    
+    zip_filename = os.path.join(temp_dir, f"media_part_{part_index}.zip")
+
     with zipfile.ZipFile(zip_filename, "w", zipfile.ZIP_DEFLATED) as zipf:
         for root, _, files in os.walk(user_dir):
             for file in files:
                 file_path = os.path.join(root, file)
+                if not os.path.isfile(file_path):  # Skip directories
+                    continue
                 file_size = os.path.getsize(file_path)
 
                 if current_zip_size + file_size > max_size:
                     zip_files.append(zip_filename)
                     part_index += 1
-                    zip_filename = f"{user_dir}_media_part_{part_index}.zip"
+                    zip_filename = os.path.join(temp_dir, f"media_part_{part_index}.zip")
                     zipf = zipfile.ZipFile(zip_filename, "w", zipfile.ZIP_DEFLATED)
                     current_zip_size = 0
 
@@ -60,8 +63,6 @@ def create_zip_files(user_dir, max_size):
         zip_files.append(zip_filename)  # Add the last zip file
 
     return zip_files
-
-
 # Function to extract username from the VSCO URL
 def extract_username(url):
     match = re.search(r"vsco\.co/([^/]+)/", url)
@@ -215,38 +216,45 @@ def vsco_page():
         if username_input:
             st.info(f"Fetching gallery for username: {username_input}")
 
-            # Run gallery-dl to download media
-            returncode, stdout, stderr = run_gallery_dl(username_input)
-            if returncode == 0:
-                st.success("Gallery downloaded successfully!")
+            # Create a temporary directory for downloads
+            with tempfile.TemporaryDirectory() as temp_dir:
+                download_dir = os.path.join(temp_dir, username_input)
+                os.makedirs(download_dir, exist_ok=True)
 
-                # Path to downloaded media
-                user_dir = f"downloads/{username_input}"
-                max_zip_size = 50 * 1024 * 1024  # 50 MB
+                # Run gallery-dl to download media
+                returncode, stdout, stderr = run_gallery_dl(username_input, download_dir)
+                if returncode == 0:
+                    st.success("Gallery downloaded successfully!")
 
-                # Create zip files
-                zip_files = create_zip_files(user_dir, max_zip_size)
+                    # Create zip files
+                    max_zip_size = 50 * 1024 * 1024  # 50 MB
+                    zip_files = create_zip_files(download_dir, max_zip_size, temp_dir)
 
-                # Display images and download links in grid-style layout
-                cols = st.columns(3)  # Adjust the number of columns for grid layout
-                for idx, zip_file in enumerate(zip_files, start=1):
-                    with cols[idx % 3]:  # Alternate columns
-                        # Display the first image from each zip
-                        image_path = os.path.join(user_dir, os.listdir(user_dir)[0])  # Get the first image
-                        st.image(image_path, caption=f"Part {idx}", use_column_width=True)
+                    # Display images and download links in grid-style layout
+                    cols = st.columns(3)  # Adjust the number of columns for grid layout
+                    for idx, zip_file in enumerate(zip_files, start=1):
+                        with cols[idx % 3]:  # Alternate columns
+                            # Display the first image from each zip
+                            media_files = [
+                                f for f in os.listdir(download_dir)
+                                if f.lower().endswith(('.png', '.jpg', '.jpeg'))
+                            ]
+                            if media_files:
+                                image_path = os.path.join(download_dir, media_files[0])
+                                st.image(image_path, caption=f"Part {idx}", use_container_width=True)
 
-                        # Provide download button
-                        with open(zip_file, "rb") as f:
-                            st.download_button(
-                                label=f"Download Part {idx}",
-                                data=f,
-                                file_name=os.path.basename(zip_file),
-                                mime="application/zip",
-                                key=f"download_button_{idx}"  # Unique key for each button
-                            )
-            else:
-                st.error("Failed to fetch gallery. Please check the username.")
-                st.error(stderr)
+                            # Provide download button
+                            with open(zip_file, "rb") as f:
+                                st.download_button(
+                                    label=f"Download Part {idx}",
+                                    data=f,
+                                    file_name=os.path.basename(zip_file),
+                                    mime="application/zip",
+                                    key=f"download_button_{idx}"  # Unique key for each button
+                                )
+                else:
+                    st.error("Failed to fetch gallery. Please check the username.")
+                    st.error(stderr)
     
     # Sidebar with social link and description
     st.sidebar.title("Follow Us")
