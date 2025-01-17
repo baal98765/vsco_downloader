@@ -27,6 +27,39 @@ import aiofiles
 
 
 
+def run_gallery_dl(username):
+    """Runs gallery-dl to download VSCO gallery for a given username."""
+    command = ["gallery-dl", f"https://vsco.co/{username}/gallery", "-d", f"downloads/{username}"]
+    process = Popen(command, stdout=PIPE, stderr=PIPE)
+    stdout, stderr = process.communicate()
+    return process.returncode, stdout.decode(), stderr.decode()
+
+def create_zip_files(user_dir, max_size):
+    """Creates zip files of downloaded media, limiting each zip to max_size."""
+    part_index = 1
+    current_zip_size = 0
+    zip_files = []
+    zip_filename = f"{user_dir}_media_part_{part_index}.zip"
+    
+    with zipfile.ZipFile(zip_filename, "w", zipfile.ZIP_DEFLATED) as zipf:
+        for root, _, files in os.walk(user_dir):
+            for file in files:
+                file_path = os.path.join(root, file)
+                file_size = os.path.getsize(file_path)
+
+                if current_zip_size + file_size > max_size:
+                    zip_files.append(zip_filename)
+                    part_index += 1
+                    zip_filename = f"{user_dir}_media_part_{part_index}.zip"
+                    zipf = zipfile.ZipFile(zip_filename, "w", zipfile.ZIP_DEFLATED)
+                    current_zip_size = 0
+
+                zipf.write(file_path, os.path.relpath(file_path, user_dir))
+                current_zip_size += file_size
+
+        zip_files.append(zip_filename)  # Add the last zip file
+
+    return zip_files
 
 
 # Function to extract username from the VSCO URL
@@ -174,34 +207,38 @@ def vsco_page():
         st.subheader("User Gallery")
 
         username_input = st.text_input(
-            "Enter A VSCO Username To Fetch Recent Gallery:",
+            "Enter a VSCO Username:",
             placeholder="username",
-            help="Enter the VSCO username to fetch their gallery media.",
+            help="Provide a VSCO username to fetch their gallery.",
         )
 
         if username_input:
-            # Fetch gallery media URLs for the provided username
-            media_urls = get_gallery_urls(username_input)
+            st.info(f"Fetching gallery for username: {username_input}")
 
-            if media_urls:
-                st.subheader(f"{username_input}'s Gallery")
+            # Run gallery-dl to download media
+            returncode, stdout, stderr = run_gallery_dl(username_input)
+            if returncode == 0:
+                st.success("Gallery downloaded successfully!")
 
-                # Create a list of columns for the grid layout
-                num_columns = 3
-                columns = st.columns(num_columns)
+                # Path to downloaded media
+                user_dir = f"downloads/{username_input}"
+                max_zip_size = 50 * 1024 * 1024  # 50 MB
 
-                # Display gallery images in grid layout
-                col_idx = 0
-                for media_url in media_urls:
-                    with columns[col_idx]:
-                        st.image(media_url, caption="Gallery Image", width=200)
+                # Create zip files
+                zip_files = create_zip_files(user_dir, max_zip_size)
 
-                    # Move to the next column
-                    col_idx += 1
-                    if col_idx >= num_columns:
-                        col_idx = 0  # Reset column index after every 'num_columns' items
+                # Display download links for zip files
+                for idx, zip_file in enumerate(zip_files, start=1):
+                    with open(zip_file, "rb") as f:
+                        st.download_button(
+                            label=f"Download Part {idx}",
+                            data=f,
+                            file_name=os.path.basename(zip_file),
+                            mime="application/zip",
+                        )
             else:
-                st.warning("No images found in the gallery. Please check the username and try again.")
+                st.error("Failed to fetch gallery. Please check the username.")
+                st.error(stderr)
     
     # Sidebar with social link and description
     st.sidebar.title("Follow Us")
