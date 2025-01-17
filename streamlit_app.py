@@ -22,7 +22,7 @@ import requests
 from bs4 import BeautifulSoup
 import aiohttp
 import aiofiles
-
+from subprocess import Popen, PIPE
 
 
 
