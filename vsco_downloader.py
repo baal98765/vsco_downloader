@@ -15,8 +15,7 @@ import sys
 import os
 import re
 
-def download(vsco_media_url, get_video_thumbnails = True, save = True):
-
+def download(vsco_media_url, get_video_thumbnails=True, save=True):
     request_header = { "User-Agent" : "Mozilla/5.0 (Windows NT 6.1; Win64; x64)" }
     request = ur.Request(vsco_media_url, headers = request_header)
     data = ur.urlopen(request).read()
@@ -32,7 +31,7 @@ def download(vsco_media_url, get_video_thumbnails = True, save = True):
     except Exception as e:
         print("ERROR: Failed to load json data!")
         tb.print_exc()
-        return 1
+        return []  # Return an empty list on error
 
     opener = ur.build_opener()
     opener.addheaders = [("User-Agent", "Mozilla/5.0 (Windows NT 6.1; Win64; x64)")]
@@ -58,18 +57,18 @@ def download(vsco_media_url, get_video_thumbnails = True, save = True):
     except Exception as e:
         print("ERROR: Failed to extract image/video location!")
         tb.print_exc()
-        return 1
+        return []  # Return an empty list on error
 
     return media_urls
 
-def vsco_downloader(option = None, arg = None):
+def vsco_downloader(option=None, arg=None):
 
-    if option == 1 or option == None:
+    if option == 1 or option is None:
         link = "https://vsco.co/emilieristevski/media/561f648001146426743090fa"
-        prompt_str = "Please enter an URL to an VSCO post e. g. " + link + " \n"
+        prompt_str = f"Please enter an URL to a VSCO post e.g. {link} \n"
         url = input(prompt_str)
         r = download(url)
-        if r != 1:
+        if r:
             print("Download successfully!")
             return 0
         else:
@@ -77,13 +76,12 @@ def vsco_downloader(option = None, arg = None):
             return 1
 
     if option == 2 or option == "url":
-
-        if arg == None:
+        if arg is None:
             print("ERROR: No URL provided. Exiting!")
             return 1
 
         r = download(arg)
-        if r != 1:
+        if r:
             print("Download successfully!")
             return 0
         else:
@@ -91,17 +89,16 @@ def vsco_downloader(option = None, arg = None):
             return 1
 
     if option == 3 or option == "file":
-
-        if arg == None:
+        if arg is None:
             print("ERROR: No file provided. Exiting!")
             return 1
 
         with open(arg, "r") as f:
             lines = f.readlines()
             f.close()
-        count = int(len(lines))
+        count = len(lines)
         counter = 1
-        percent = [ \
+        percent = [
             "[--------------------]", "[#-------------------]",
             "[##------------------]", "[###-----------------]",
             "[####----------------]", "[#####---------------]",
@@ -117,14 +114,12 @@ def vsco_downloader(option = None, arg = None):
         for line in lines:
             l = line.lstrip().rstrip()
             r_ = download(l)
-            status = counter/count
+            status = counter / count
             status_bar = percent[int(status * 20)]
-            status_msg = "Downloaded " + str(line) + "\n" + \
-                "Download at " + str(status*100) + "% \n" + \
-                status_bar + "\n"
-            counter = counter + 1
+            status_msg = f"Downloaded {line}\nDownload at {status*100}% \n{status_bar}\n"
+            counter += 1
             print(status_msg)
-            if r_ == 1:
+            if not r_:
                 r = 1
         if r == 0:
             print("Downloaded all Posts successfully!")
